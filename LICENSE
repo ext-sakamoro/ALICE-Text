@@ -1,0 +1,63 @@
+Business Source License 1.1
+
+Parameters
+
+Licensor:                 Moroya Sakamoto
+Licensed Work:            ALICE-Text (Exception-Based Text Compression)
+Additional Use Grant:     You may use the Licensed Work for non-commercial, 
+                          personal, and research purposes without charge. 
+                          Any use of the Licensed Work for providing 
+                          commercial SaaS (Software as a Service) requires 
+                          a separate paid license from the Licensor.
+Change Date:              2028-01-31
+Change License:           MIT License, a copy of which is provided below.
+
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, for production use of the
+Licensed Work.
+
+Effective on the Change Date, or the fourth anniversary of the first publicly
+available release of a specific version of the Licensed Work under this
+License, whichever is earlier, the Licensor hereby grants you rights under the
+terms of the Change License, and the rights granted in the paragraphs above
+shall terminate.
+
+If your use of the Licensed Work is not within the grant of this License, your
+use may be an infringement of intellectual property rights, and the Licensor
+may have other legal remedies, including for breach of contract.
+
+This License does not grant you any right in any trademark or logo of the
+Licensor or its affiliates (provided that you may use a trademark or logo of
+the Licensor as required for your notices as described below).
+
+You may make any use of the Licensed Work that would be lawful without a
+license (such as fair use).
+
+As a condition to the licenses granted down to you, you must include this
+License and the copyright notice below in all copies of the Licensed Work or
+portions thereof, and for any derivative works you prepare, you must also
+include a notice that the work has been modified from the Licensed Work.
+
+Copyright (c) 2025 Moroya Sakamoto
+
+---
+Change License: MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

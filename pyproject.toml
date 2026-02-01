@@ -1,0 +1,97 @@
+[build-system]
+# setuptools から maturin に変更 (Rust製Python拡張のデファクトスタンダード)
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "alice-text"
+version = "1.0.0"
+description = "ALICE Exception-Based Text Compression - Send only surprises, not predictions"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Moroya Sakamoto", email = "sakamoto@example.com"}
+]
+keywords = [
+    "compression",
+    "text-compression",
+    "log-compression",
+    "predictive-coding",
+    "entropy-coding",
+    "exception-based",
+    "llm-compression"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: System :: Archiving :: Compression",
+    "Topic :: Text Processing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+]
+db = [
+    "alice-db>=0.1.0",
+]
+all = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "alice-db>=0.1.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "black>=22.0.0",
+    "mypy>=0.950",
+    "ruff>=0.1.0",
+    "maturin>=1.0,<2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ext-sakamoro/ALICE-Text"
+Documentation = "https://github.com/ext-sakamoro/ALICE-Text#readme"
+Repository = "https://github.com/ext-sakamoro/ALICE-Text"
+Issues = "https://github.com/ext-sakamoro/ALICE-Text/issues"
+
+[tool.maturin]
+# Rustのpython featureを有効化してビルド
+features = ["python"]
+module-name = "alice_text"
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v"

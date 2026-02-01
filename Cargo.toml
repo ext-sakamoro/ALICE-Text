@@ -1,0 +1,77 @@
+[package]
+name = "alice-text"
+version = "1.0.0"
+edition = "2021"
+authors = ["Moroya Sakamoto"]
+description = "Exception-based text compression - Send only surprises, not predictions"
+license = "MIT"
+repository = "https://github.com/ext-sakamoro/ALICE-Text"
+keywords = ["compression", "text", "log", "predictive-coding", "entropy"]
+categories = ["compression", "text-processing"]
+
+[lib]
+name = "alice_text"
+# Python拡張(cdylib)とRustライブラリ(rlib)の両対応
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# --- Core Performance ---
+# Microsoft製の爆速アロケータ。圧縮・解凍の速度安定に効く
+mimalloc = { version = "0.1", default-features = false }
+
+# --- Serialization ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"  # Fast binary serialization
+
+# --- Compression ---
+lzma-rs = "0.3"  # Legacy, kept for compatibility
+zstd = { version = "0.13", features = ["thin"] }  # thin機能でバイナリサイズ削減
+
+# --- Regex ---
+regex = "1.10"
+
+# --- Date/Time ---
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+# --- Utilities ---
+thiserror = "1.0"
+log = { version = "0.4", features = ["max_level_info", "release_max_level_warn"] }
+bytemuck = { version = "1.14", features = ["derive"] }
+smallvec = { version = "1.13", features = ["union", "const_generics"] }
+
+# --- Query Engine Optimization ---
+memmap2 = "0.9"    # Zero-copy memory mapping
+rayon = "1.10"     # Parallel processing
+
+# --- CLI ---
+clap = { version = "4.5", features = ["derive"] }
+
+# --- Python ---
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"], optional = true }
+
+[[bin]]
+name = "alice-text"
+path = "src/bin/alice_text.rs"
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.10"
+
+[features]
+default = []
+python = ["pyo3"]
+
+[[bench]]
+name = "compression_benchmark"
+harness = false
+
+# --- Ultimate Release Profile ---
+[profile.release]
+opt-level = 3       # 最大最適化
+lto = "fat"         # Link Time Optimization (モジュール境界を越えてガッツリ最適化)
+codegen-units = 1   # 並列コンパイルを無効化し、全体最適化の質を上げる
+panic = "abort"     # パニック時の巻き戻しコード削除（高速化＆軽量化）
+strip = true        # デバッグシンボル削除
+debug = false       # デバッグ情報を含めない
+rpath = false

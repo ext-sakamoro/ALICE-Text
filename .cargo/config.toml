@@ -1,0 +1,17 @@
+# ALICE-Text Cargo Configuration
+# CPU-native optimizations for maximum performance
+
+[build]
+# 実行マシンのCPUに最適化された命令セットを使用 (AVX2, AVX-512等)
+# ※ 注意: これを設定すると、異なるCPUのマシンでは動かなくなる可能性があります
+# クロスコンパイルや配布用バイナリを作成する場合はコメントアウトしてください
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-cpu=native"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=native"]

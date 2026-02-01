@@ -1,0 +1,491 @@
+//! Arithmetic coding module for ALICE-Text
+//!
+//! Provides entropy-optimal encoding for symbol sequences.
+
+use std::collections::HashMap;
+
+/// Precision bits for arithmetic coding
+const PRECISION_BITS: u32 = 31; // Use 31 bits to avoid overflow issues
+const WHOLE: u64 = 1 << PRECISION_BITS;
+const HALF: u64 = WHOLE / 2;
+const QUARTER: u64 = WHOLE / 4;
+const THREE_QUARTERS: u64 = 3 * QUARTER;
+
+/// Frequency model for symbols
+#[derive(Debug, Clone)]
+pub struct FrequencyModel {
+    /// Symbol frequencies
+    frequencies: HashMap<u8, u64>,
+    /// Total frequency count
+    total: u64,
+    /// Cumulative frequencies (for encoding)
+    cumulative: Vec<(u8, u64, u64)>, // (symbol, low, high)
+}
+
+impl FrequencyModel {
+    /// Create a new frequency model
+    pub fn new() -> Self {
+        Self {
+            frequencies: HashMap::new(),
+            total: 0,
+            cumulative: Vec::new(),
+        }
+    }
+
+    /// Create from byte data
+    pub fn from_data(data: &[u8]) -> Self {
+        let mut model = Self::new();
+        for &byte in data {
+            model.add_symbol(byte);
+        }
+        model.build_cumulative();
+        model
+    }
+
+    /// Add a symbol occurrence
+    pub fn add_symbol(&mut self, symbol: u8) {
+        *self.frequencies.entry(symbol).or_insert(0) += 1;
+        self.total += 1;
+    }
+
+    /// Build cumulative frequency table
+    pub fn build_cumulative(&mut self) {
+        self.cumulative.clear();
+        let mut cumsum: u64 = 0;
+
+        // Sort by symbol for deterministic ordering
+        let mut symbols: Vec<_> = self.frequencies.iter().collect();
+        symbols.sort_by_key(|(k, _)| *k);
+
+        for (&symbol, &freq) in symbols {
+            let low = cumsum;
+            cumsum += freq;
+            let high = cumsum;
+            self.cumulative.push((symbol, low, high));
+        }
+    }
+
+    /// Get probability range for a symbol
+    pub fn get_range(&self, symbol: u8) -> Option<(u64, u64, u64)> {
+        for &(s, low, high) in &self.cumulative {
+            if s == symbol {
+                return Some((low, high, self.total));
+            }
+        }
+        None
+    }
+
+    /// Get symbol from cumulative frequency value
+    pub fn get_symbol(&self, value: u64) -> Option<u8> {
+        for &(symbol, low, high) in &self.cumulative {
+            if value >= low && value < high {
+                return Some(symbol);
+            }
+        }
+        // Handle edge case where value equals total
+        if let Some(&(symbol, _, high)) = self.cumulative.last() {
+            if value == high {
+                return Some(symbol);
+            }
+        }
+        None
+    }
+
+    /// Get total frequency
+    pub fn total(&self) -> u64 {
+        self.total
+    }
+
+    /// Check if model is empty
+    pub fn is_empty(&self) -> bool {
+        self.total == 0
+    }
+}
+
+impl Default for FrequencyModel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Arithmetic encoder
+pub struct ArithmeticEncoder {
+    /// Low bound
+    low: u64,
+    /// High bound
+    high: u64,
+    /// Pending bits for output
+    pending_bits: u32,
+    /// Output buffer
+    output: Vec<u8>,
+    /// Current output byte
+    current_byte: u8,
+    /// Bits written to current byte
+    bits_in_byte: u8,
+}
+
+impl ArithmeticEncoder {
+    /// Create a new encoder
+    pub fn new() -> Self {
+        Self {
+            low: 0,
+            high: WHOLE - 1,
+            pending_bits: 0,
+            output: Vec::new(),
+            current_byte: 0,
+            bits_in_byte: 0,
+        }
+    }
+
+    /// Encode a symbol using u128 for intermediate calculations
+    pub fn encode_symbol(&mut self, symbol: u8, model: &FrequencyModel) {
+        if let Some((sym_low, sym_high, total)) = model.get_range(symbol) {
+            let range = (self.high - self.low + 1) as u128;
+            let total = total as u128;
+
+            // Use u128 to avoid overflow
+            self.high = self.low + ((range * sym_high as u128 / total) as u64) - 1;
+            self.low = self.low + ((range * sym_low as u128 / total) as u64);
+
+            self.normalize();
+        }
+    }
+
+    /// Encode data using a frequency model
+    pub fn encode(&mut self, data: &[u8], model: &FrequencyModel) {
+        for &byte in data {
+            self.encode_symbol(byte, model);
+        }
+    }
+
+    /// Normalize and output bits
+    fn normalize(&mut self) {
+        loop {
+            if self.high < HALF {
+                // Output 0 and pending 1s
+                self.output_bit(0);
+                while self.pending_bits > 0 {
+                    self.output_bit(1);
+                    self.pending_bits -= 1;
+                }
+            } else if self.low >= HALF {
+                // Output 1 and pending 0s
+                self.output_bit(1);
+                while self.pending_bits > 0 {
+                    self.output_bit(0);
+                    self.pending_bits -= 1;
+                }
+                self.low -= HALF;
+                self.high -= HALF;
+            } else if self.low >= QUARTER && self.high < THREE_QUARTERS {
+                // Middle case - increment pending
+                self.pending_bits += 1;
+                self.low -= QUARTER;
+                self.high -= QUARTER;
+            } else {
+                break;
+            }
+
+            // Scale up
+            self.low *= 2;
+            self.high = self.high * 2 + 1;
+        }
+    }
+
+    /// Output a single bit
+    fn output_bit(&mut self, bit: u8) {
+        self.current_byte = (self.current_byte << 1) | (bit & 1);
+        self.bits_in_byte += 1;
+
+        if self.bits_in_byte == 8 {
+            self.output.push(self.current_byte);
+            self.current_byte = 0;
+            self.bits_in_byte = 0;
+        }
+    }
+
+    /// Finish encoding and get output
+    pub fn finish(mut self) -> Vec<u8> {
+        // Output final bits to distinguish the interval
+        self.pending_bits += 1;
+        if self.low < QUARTER {
+            self.output_bit(0);
+            while self.pending_bits > 0 {
+                self.output_bit(1);
+                self.pending_bits -= 1;
+            }
+        } else {
+            self.output_bit(1);
+            while self.pending_bits > 0 {
+                self.output_bit(0);
+                self.pending_bits -= 1;
+            }
+        }
+
+        // Flush remaining bits with padding
+        if self.bits_in_byte > 0 {
+            self.current_byte <<= 8 - self.bits_in_byte;
+            self.output.push(self.current_byte);
+        }
+
+        self.output
+    }
+
+    /// Get current encoded size
+    pub fn encoded_size(&self) -> usize {
+        self.output.len()
+    }
+}
+
+impl Default for ArithmeticEncoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Arithmetic decoder
+pub struct ArithmeticDecoder {
+    /// Low bound
+    low: u64,
+    /// High bound
+    high: u64,
+    /// Current code value
+    code: u64,
+    /// Input data
+    input: Vec<u8>,
+    /// Current byte position in input
+    byte_pos: usize,
+    /// Current bit position in byte (0-7)
+    bit_pos: u8,
+}
+
+impl ArithmeticDecoder {
+    /// Create a new decoder
+    pub fn new(data: Vec<u8>) -> Self {
+        let mut decoder = Self {
+            low: 0,
+            high: WHOLE - 1,
+            code: 0,
+            input: data,
+            byte_pos: 0,
+            bit_pos: 0,
+        };
+
+        // Read initial code value
+        for _ in 0..PRECISION_BITS {
+            decoder.code = (decoder.code << 1) | decoder.read_bit() as u64;
+        }
+
+        decoder
+    }
+
+    /// Read a single bit from input
+    fn read_bit(&mut self) -> u8 {
+        if self.byte_pos >= self.input.len() {
+            return 0; // Pad with zeros
+        }
+
+        let bit = (self.input[self.byte_pos] >> (7 - self.bit_pos)) & 1;
+        self.bit_pos += 1;
+
+        if self.bit_pos == 8 {
+            self.bit_pos = 0;
+            self.byte_pos += 1;
+        }
+
+        bit
+    }
+
+    /// Decode a symbol using u128 for intermediate calculations
+    pub fn decode_symbol(&mut self, model: &FrequencyModel) -> Option<u8> {
+        if model.is_empty() {
+            return None;
+        }
+
+        let range = (self.high - self.low + 1) as u128;
+        let total = model.total() as u128;
+
+        // Calculate the cumulative frequency value
+        // value = ((code - low + 1) * total - 1) / range
+        let code_offset = (self.code - self.low) as u128;
+        let value = ((code_offset + 1) * total - 1) / range;
+
+        // Find symbol for this value
+        let symbol = model.get_symbol(value as u64)?;
+        let (sym_low, sym_high, _) = model.get_range(symbol)?;
+
+        // Update interval using u128
+        self.high = self.low + ((range * sym_high as u128 / total) as u64) - 1;
+        self.low = self.low + ((range * sym_low as u128 / total) as u64);
+
+        // Normalize
+        self.normalize();
+
+        Some(symbol)
+    }
+
+    /// Decode n symbols
+    pub fn decode(&mut self, model: &FrequencyModel, count: usize) -> Vec<u8> {
+        let mut result = Vec::with_capacity(count);
+        for _ in 0..count {
+            if let Some(symbol) = self.decode_symbol(model) {
+                result.push(symbol);
+            } else {
+                break;
+            }
+        }
+        result
+    }
+
+    /// Normalize decoder state
+    fn normalize(&mut self) {
+        loop {
+            if self.high < HALF {
+                // Do nothing special, just scale
+            } else if self.low >= HALF {
+                self.code -= HALF;
+                self.low -= HALF;
+                self.high -= HALF;
+            } else if self.low >= QUARTER && self.high < THREE_QUARTERS {
+                self.code -= QUARTER;
+                self.low -= QUARTER;
+                self.high -= QUARTER;
+            } else {
+                break;
+            }
+
+            // Scale up
+            self.low *= 2;
+            self.high = self.high * 2 + 1;
+            self.code = self.code * 2 + self.read_bit() as u64;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_frequency_model() {
+        let data = b"hello world";
+        let model = FrequencyModel::from_data(data);
+
+        assert_eq!(model.total(), 11);
+        assert!(model.get_range(b'l').is_some());
+    }
+
+    #[test]
+    fn test_arithmetic_coding_roundtrip() {
+        let data = b"hello";
+        let model = FrequencyModel::from_data(data);
+
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(data, &model);
+        let encoded = encoder.finish();
+
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+
+        assert_eq!(data.to_vec(), decoded);
+    }
+
+    #[test]
+    fn test_longer_text() {
+        let data = b"The quick brown fox jumps over the lazy dog.";
+        let model = FrequencyModel::from_data(data);
+
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(data, &model);
+        let encoded = encoder.finish();
+
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+
+        assert_eq!(data.to_vec(), decoded);
+    }
+
+    #[test]
+    fn test_repetitive_data() {
+        let data = b"aaaaaaaaaa";
+        let model = FrequencyModel::from_data(data);
+
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(data, &model);
+        let encoded = encoder.finish();
+
+        // Repetitive data should compress well
+        assert!(encoded.len() < data.len());
+
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+
+        assert_eq!(data.to_vec(), decoded);
+    }
+
+    #[test]
+    fn test_empty_data() {
+        let _model = FrequencyModel::new();
+        let encoder = ArithmeticEncoder::new();
+        let encoded = encoder.finish();
+
+        assert!(!encoded.is_empty()); // Has termination bits
+    }
+
+    #[test]
+    fn test_single_byte() {
+        let data = b"x";
+        let model = FrequencyModel::from_data(data);
+
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(data, &model);
+        let encoded = encoder.finish();
+
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+
+        assert_eq!(data.to_vec(), decoded);
+    }
+
+    #[test]
+    fn test_binary_data() {
+        let data: Vec<u8> = (0..=255).collect();
+        let model = FrequencyModel::from_data(&data);
+
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(&data, &model);
+        let encoded = encoder.finish();
+
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+
+        assert_eq!(data, decoded);
+    }
+
+    #[test]
+    fn test_compression_ratio() {
+        // Data with skewed distribution should compress well
+        let mut data = Vec::new();
+        for _ in 0..100 {
+            data.push(b'a');
+        }
+        for _ in 0..10 {
+            data.push(b'b');
+        }
+        data.push(b'c');
+
+        let model = FrequencyModel::from_data(&data);
+
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(&data, &model);
+        let encoded = encoder.finish();
+
+        // Should achieve good compression
+        assert!(encoded.len() < data.len() / 2);
+
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+
+        assert_eq!(data, decoded);
+    }
+}
