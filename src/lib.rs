@@ -272,16 +272,20 @@ mod python_bindings {
             })
         }
 
-        fn compress(&mut self, text: &str) -> PyResult<Vec<u8>> {
-            self.inner
-                .compress(text)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        fn compress(&mut self, py: Python<'_>, text: &str) -> PyResult<Vec<u8>> {
+            let text_owned = text.to_owned();
+            let inner = &mut self.inner;
+            py.allow_threads(|| {
+                inner.compress(&text_owned)
+            }).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         }
 
-        fn decompress(&self, data: &[u8]) -> PyResult<String> {
-            self.inner
-                .decompress(data)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        fn decompress(&self, py: Python<'_>, data: &[u8]) -> PyResult<String> {
+            let data_owned = data.to_vec();
+            let inner = &self.inner;
+            py.allow_threads(|| {
+                inner.decompress(&data_owned)
+            }).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         }
     }
 
