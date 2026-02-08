@@ -50,6 +50,9 @@ clap = { version = "4.5", features = ["derive"] }
 # --- Python ---
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"], optional = true }
 
+# --- ML inference ---
+alice-ml = { path = "../ALICE-ML", optional = true, default-features = false, features = ["std"] }
+
 [[bin]]
 name = "alice-text"
 path = "src/bin/alice_text.rs"
@@ -61,6 +64,7 @@ tempfile = "3.10"
 [features]
 default = []
 python = ["pyo3"]
+ml = ["dep:alice-ml"]  # ALICE-ML ternary inference for text prediction
 
 [[bench]]
 name = "compression_benchmark"

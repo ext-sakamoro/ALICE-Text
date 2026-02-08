@@ -246,6 +246,9 @@ pub fn decompress(data: &[u8]) -> Result<String> {
     alice.decompress(data)
 }
 
+#[cfg(feature = "ml")]
+pub mod ml_bridge;
+
 #[cfg(feature = "python")]
 mod python_bindings {
     use super::*;
