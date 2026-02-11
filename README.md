@@ -318,6 +318,30 @@ ALICE-Text files use the `.atxt` extension.
 └────────────────────────────────────────────────────────────┘
 ```
 
+## Cross-Crate Bridges
+
+### ALICE-ML Bridge (feature: `ml`)
+
+Ternary inference for text prediction enhancement.
+
+Enable: `alice-text = { features = ["ml"] }`
+
+### ALICE-Voice Bridge (feature: `voice`)
+
+Speech encoding hints for voice-aware text compression.
+
+Enable: `alice-text = { features = ["voice"] }`
+
+### ALICE-Search Bridge (feature: `search`)
+
+Full-text index for compressed text using FM-Index.
+
+- `CompressedSearchIndex` — FM-Index wrapper for compressed text data
+- `build_index_from_compressed()` — Build search index from compressed blocks
+- `search()` / `search_count()` — Pattern search with O(m) backward search
+
+Enable: `alice-text = { features = ["search"] }`
+
 ## Build Configuration
 
 Optimized for maximum performance:
