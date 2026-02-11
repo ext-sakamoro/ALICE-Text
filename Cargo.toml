@@ -53,6 +53,12 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"], optiona
 # --- ML inference ---
 alice-ml = { path = "../ALICE-ML", optional = true, default-features = false, features = ["std"] }
 
+# --- Voice bridge ---
+alice-voice = { path = "../ALICE-Voice", optional = true, default-features = false, features = ["std"] }
+
+# --- Search bridge ---
+alice-search = { path = "../ALICE-Search", optional = true, default-features = false }
+
 [[bin]]
 name = "alice-text"
 path = "src/bin/alice_text.rs"
@@ -65,6 +71,8 @@ tempfile = "3.10"
 default = []
 python = ["pyo3"]
 ml = ["dep:alice-ml"]  # ALICE-ML ternary inference for text prediction
+voice = ["dep:alice-voice"]  # ALICE-Voice bridge for speech encoding hints
+search = ["dep:alice-search"]  # ALICE-Search full-text index for compressed text
 
 [[bench]]
 name = "compression_benchmark"
