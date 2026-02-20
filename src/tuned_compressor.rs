@@ -182,13 +182,15 @@ impl TunedCompressor {
         let compressed_size = output.len();
 
         // Update stats
+        let inv_original = 1.0 / original_size as f64;
+        let ratio = compressed_size as f64 * inv_original;
         self.last_stats = Some(TunedStats {
             original_size,
             compressed_size,
             skeleton_size,
             pattern_count,
-            compression_ratio: compressed_size as f64 / original_size as f64,
-            space_savings: 1.0 - (compressed_size as f64 / original_size as f64),
+            compression_ratio: ratio,
+            space_savings: 1.0 - ratio,
         });
 
         Ok(output)

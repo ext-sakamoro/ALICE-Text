@@ -104,7 +104,8 @@ impl EntropyEstimator {
         let estimated_size = (original_size as f64 * estimated_ratio).ceil() as usize
             + self.header_overhead;
 
-        let actual_ratio = estimated_size as f64 / original_size as f64;
+        let inv_original = 1.0 / original_size as f64;
+        let actual_ratio = estimated_size as f64 * inv_original;
         let space_savings = (1.0 - actual_ratio).max(0.0);
 
         EntropyEstimate {
@@ -131,11 +132,12 @@ impl EntropyEstimator {
         }
 
         let len = data.len() as f64;
+        let inv_len = 1.0 / len;
         let mut entropy = 0.0;
 
         for &count in freq.values() {
             if count > 0 {
-                let p = count as f64 / len;
+                let p = count as f64 * inv_len;
                 entropy -= p * p.log2();
             }
         }
@@ -152,7 +154,8 @@ impl EntropyEstimator {
         let matches = self.pattern_learner.find_matches(text);
         let covered_chars: usize = matches.iter().map(|m| m.end - m.start).sum();
 
-        covered_chars as f64 / text.len() as f64
+        let inv_len = 1.0 / text.len() as f64;
+        covered_chars as f64 * inv_len
     }
 
     /// Calculate repetition score and unique byte count
@@ -170,13 +173,15 @@ impl EntropyEstimator {
         let max_unique = 256.min(data.len());
 
         // Repetition score: lower unique bytes = higher repetition
-        let repetition_score = 1.0 - (unique_bytes as f64 / max_unique as f64);
+        let inv_max_unique = 1.0 / max_unique as f64;
+        let repetition_score = 1.0 - (unique_bytes as f64 * inv_max_unique);
 
         // Also factor in how repeated the most common bytes are
         let max_freq = *freq.values().max().unwrap_or(&0);
-        let freq_factor = max_freq as f64 / data.len() as f64;
+        let inv_data_len = 1.0 / data.len() as f64;
+        let freq_factor = max_freq as f64 * inv_data_len;
 
-        let combined_score = (repetition_score + freq_factor) / 2.0;
+        let combined_score = (repetition_score + freq_factor) * 0.5;
 
         (combined_score, unique_bytes)
     }
@@ -190,8 +195,9 @@ impl EntropyEstimator {
         repetition_score: f64,
     ) -> f64 {
         // Base ratio from Shannon entropy (theoretical minimum)
-        // 8 bits per byte, so ratio = entropy / 8
-        let entropy_ratio = shannon_entropy / 8.0;
+        // 8 bits per byte, so ratio = entropy * (1/8)
+        const RCP_8: f64 = 1.0 / 8.0;
+        let entropy_ratio = shannon_entropy * RCP_8;
 
         // Pattern bonus (patterns compress well)
         let pattern_factor = 1.0 - (pattern_coverage * 0.3);
