@@ -61,7 +61,7 @@ impl TextPredictor {
     pub fn predict_top(&self, context: &[f32]) -> (usize, f32) {
         let mut logits = vec![0.0f32; self.vocab_size];
         self.predict_logits(context, &mut logits);
-        let (idx, &val) = logits.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap();
+        let (idx, &val) = logits.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)).unwrap();
         (idx, val)
     }
 
