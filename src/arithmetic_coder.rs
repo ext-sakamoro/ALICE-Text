@@ -138,14 +138,16 @@ impl ArithmeticEncoder {
     }
 
     /// Encode a symbol using u128 for intermediate calculations
+    #[inline(always)]
     pub fn encode_symbol(&mut self, symbol: u8, model: &FrequencyModel) {
         if let Some((sym_low, sym_high, total)) = model.get_range(symbol) {
             let range = (self.high - self.low + 1) as u128;
-            let total = total as u128;
+            // Pre-compute total once to avoid repeated division setup
+            let total128 = total as u128;
 
             // Use u128 to avoid overflow
-            self.high = self.low + ((range * sym_high as u128 / total) as u64) - 1;
-            self.low = self.low + ((range * sym_low as u128 / total) as u64);
+            self.high = self.low + ((range * sym_high as u128 / total128) as u64) - 1;
+            self.low += (range * sym_low as u128 / total128) as u64;
 
             self.normalize();
         }
@@ -159,6 +161,7 @@ impl ArithmeticEncoder {
     }
 
     /// Normalize and output bits
+    #[inline(always)]
     fn normalize(&mut self) {
         loop {
             if self.high < HALF {
@@ -193,6 +196,7 @@ impl ArithmeticEncoder {
     }
 
     /// Output a single bit
+    #[inline(always)]
     fn output_bit(&mut self, bit: u8) {
         self.current_byte = (self.current_byte << 1) | (bit & 1);
         self.bits_in_byte += 1;
@@ -280,6 +284,7 @@ impl ArithmeticDecoder {
     }
 
     /// Read a single bit from input
+    #[inline(always)]
     fn read_bit(&mut self) -> u8 {
         if self.byte_pos >= self.input.len() {
             return 0; // Pad with zeros
@@ -297,26 +302,28 @@ impl ArithmeticDecoder {
     }
 
     /// Decode a symbol using u128 for intermediate calculations
+    #[inline(always)]
     pub fn decode_symbol(&mut self, model: &FrequencyModel) -> Option<u8> {
         if model.is_empty() {
             return None;
         }
 
         let range = (self.high - self.low + 1) as u128;
-        let total = model.total() as u128;
+        // Pre-compute total once to avoid repeated division setup
+        let total128 = model.total() as u128;
 
         // Calculate the cumulative frequency value
         // value = ((code - low + 1) * total - 1) / range
         let code_offset = (self.code - self.low) as u128;
-        let value = ((code_offset + 1) * total - 1) / range;
+        let value = ((code_offset + 1) * total128 - 1) / range;
 
         // Find symbol for this value
         let symbol = model.get_symbol(value as u64)?;
         let (sym_low, sym_high, _) = model.get_range(symbol)?;
 
         // Update interval using u128
-        self.high = self.low + ((range * sym_high as u128 / total) as u64) - 1;
-        self.low = self.low + ((range * sym_low as u128 / total) as u64);
+        self.high = self.low + ((range * sym_high as u128 / total128) as u64) - 1;
+        self.low += (range * sym_low as u128 / total128) as u64;
 
         // Normalize
         self.normalize();
@@ -338,6 +345,7 @@ impl ArithmeticDecoder {
     }
 
     /// Normalize decoder state
+    #[inline(always)]
     fn normalize(&mut self) {
         loop {
             if self.high < HALF {

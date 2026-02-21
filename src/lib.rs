@@ -167,10 +167,7 @@ impl ALICEText {
         }
     }
 
-    /// Create with default pattern mode
-    pub fn default() -> Self {
-        Self::new(EncodingMode::Pattern)
-    }
+
 
     /// Compress text to bytes (uses TunedCompressor v2)
     pub fn compress(&mut self, text: &str) -> Result<Vec<u8>> {
@@ -304,6 +301,7 @@ mod python_bindings {
         Ok(())
     }
 }
+
 
 #[cfg(test)]
 mod tests {

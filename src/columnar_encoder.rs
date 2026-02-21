@@ -26,7 +26,7 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse_level(s: &str) -> Self {
         match s.to_uppercase().as_str() {
             "TRACE" => Self::Trace,
             "DEBUG" => Self::Debug,
@@ -75,7 +75,7 @@ const TIMESTAMP_FORMATS_TZ: &[&str] = &[
 /// Delta encoding dramatically reduces size for time-series data:
 /// - Before: "2024-01-15 10:30:45" (19 bytes) × N
 /// - After: base + [0, 1000, 1000, ...] (few bytes each after Zstd)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TimestampColumn {
     /// First timestamp as full string (for reconstruction)
     pub base: Option<String>,
@@ -98,19 +98,7 @@ pub struct TimestampColumn {
     pub base_offset_secs: Option<i32>,
 }
 
-impl Default for TimestampColumn {
-    fn default() -> Self {
-        Self {
-            base: None,
-            base_ms: None,
-            deltas: Vec::new(),
-            raw: Vec::new(),
-            cached_format_idx: None,
-            last_ms: 0,
-            base_offset_secs: None,
-        }
-    }
-}
+
 
 /// Cached format type
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
@@ -432,7 +420,7 @@ impl ColumnarPayload {
                 (1u8, (self.ipv4_addrs.len() - 1) as u32)
             }
             PatternType::LogLevel => {
-                let level = LogLevel::from_str(text);
+                let level = LogLevel::parse_level(text);
                 self.log_levels.push(level as u8);
                 (2u8, (self.log_levels.len() - 1) as u32)
             }
@@ -645,7 +633,7 @@ impl LogLevel {
 
 /// Parse IPv4 string to u32
 fn parse_ipv4(s: &str) -> Option<u32> {
-    s.parse::<Ipv4Addr>().ok().map(|ip| u32::from(ip))
+    s.parse::<Ipv4Addr>().ok().map(u32::from)
 }
 
 /// Format u32 back to IPv4 string
@@ -689,7 +677,7 @@ fn format_number(n: f64) -> String {
 /// Parse IPv6 string to u128
 fn parse_ipv6(s: &str) -> Option<u128> {
     use std::net::Ipv6Addr;
-    s.parse::<Ipv6Addr>().ok().map(|ip| u128::from(ip))
+    s.parse::<Ipv6Addr>().ok().map(u128::from)
 }
 
 /// Format u128 back to IPv6 string
@@ -747,7 +735,7 @@ fn parse_time_to_ms(s: &str) -> Option<u32> {
         if let Ok(time) = NaiveTime::parse_from_str(s, fmt) {
             let midnight = NaiveTime::from_hms_opt(0, 0, 0)?;
             let ms = time.signed_duration_since(midnight).num_milliseconds();
-            if ms >= 0 && ms <= 86_400_000 {
+            if (0..=86_400_000).contains(&ms) {
                 return Some(ms as u32);
             }
         }
@@ -818,8 +806,8 @@ mod tests {
 
     #[test]
     fn test_log_level_encoding() {
-        assert_eq!(LogLevel::from_str("INFO") as u8, 2);
-        assert_eq!(LogLevel::from_str("ERROR") as u8, 4);
+        assert_eq!(LogLevel::parse_level("INFO") as u8, 2);
+        assert_eq!(LogLevel::parse_level("ERROR") as u8, 4);
         assert_eq!(LogLevel::Info.to_str(), "INFO");
     }
 

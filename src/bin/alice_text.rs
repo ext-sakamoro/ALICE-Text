@@ -310,15 +310,15 @@ fn show_info(input: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
     if version.0 >= 2 {
         // v2 format (TunedCompressor)
-        let original_length = u64::from_le_bytes(compressed[10..18].try_into().unwrap());
+        let original_length = u64::from_le_bytes(compressed[10..18].try_into().unwrap_or([0u8; 8]));
         let mode = match compressed[18] {
             0 => "Fast",
             1 => "Balanced",
             2 => "Best",
             _ => "Unknown",
         };
-        let pattern_count = u32::from_le_bytes(compressed[22..26].try_into().unwrap());
-        let skeleton_length = u32::from_le_bytes(compressed[26..30].try_into().unwrap());
+        let pattern_count = u32::from_le_bytes(compressed[22..26].try_into().unwrap_or([0u8; 4]));
+        let skeleton_length = u32::from_le_bytes(compressed[26..30].try_into().unwrap_or([0u8; 4]));
 
         println!("Format:          Tuned (Zstd + Columnar)");
         println!("Compression:     {}", mode);
@@ -342,9 +342,9 @@ fn show_info(input: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
             1 => "N-gram",
             _ => "Unknown",
         };
-        let original_length = u32::from_le_bytes(compressed[14..18].try_into().unwrap());
-        let token_count = u32::from_le_bytes(compressed[18..22].try_into().unwrap());
-        let exception_count = u32::from_le_bytes(compressed[22..26].try_into().unwrap());
+        let original_length = u32::from_le_bytes(compressed[14..18].try_into().unwrap_or([0u8; 4]));
+        let token_count = u32::from_le_bytes(compressed[18..22].try_into().unwrap_or([0u8; 4]));
+        let exception_count = u32::from_le_bytes(compressed[22..26].try_into().unwrap_or([0u8; 4]));
 
         println!("Format:          Legacy (LZMA)");
         println!("Mode:            {}", mode);
@@ -623,7 +623,9 @@ fn query_file(
     Ok(())
 }
 
-fn parse_filter(filter: &str) -> Result<(Option<&str>, Option<Op>, Option<&str>), Box<dyn std::error::Error>> {
+type FilterResult<'a> = Result<(Option<&'a str>, Option<Op>, Option<&'a str>), Box<dyn std::error::Error>>;
+
+fn parse_filter(filter: &str) -> FilterResult<'_> {
     // Parse: column=value, column!=value, column>=value, column<=value, column>value, column<value, column~value
     // Order matters: check multi-char operators first
     if let Some((col, val)) = filter.split_once("!=") {

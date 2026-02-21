@@ -143,13 +143,14 @@ impl ColumnEntry {
                 "Column entry too short".to_string(),
             ));
         }
+        let to_err = || ALICETextError::DecompressionError("Column entry slice error".to_string());
         Ok(Self {
             col_type: ColumnType::from_u8(bytes[0])
                 .ok_or_else(|| ALICETextError::DecompressionError("Invalid column type".to_string()))?,
-            offset: u64::from_le_bytes(bytes[1..9].try_into().unwrap()),
-            compressed_size: u32::from_le_bytes(bytes[9..13].try_into().unwrap()),
-            uncompressed_size: u32::from_le_bytes(bytes[13..17].try_into().unwrap()),
-            row_count: u32::from_le_bytes(bytes[17..21].try_into().unwrap()),
+            offset: u64::from_le_bytes(bytes[1..9].try_into().map_err(|_| to_err())?),
+            compressed_size: u32::from_le_bytes(bytes[9..13].try_into().map_err(|_| to_err())?),
+            uncompressed_size: u32::from_le_bytes(bytes[13..17].try_into().map_err(|_| to_err())?),
+            row_count: u32::from_le_bytes(bytes[17..21].try_into().map_err(|_| to_err())?),
         })
     }
 }
@@ -189,12 +190,13 @@ impl FormatV3Header {
                 "Header too short".to_string(),
             ));
         }
+        let to_err = || ALICETextError::DecompressionError("Header slice error".to_string());
         Ok(Self {
-            original_length: u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+            original_length: u64::from_le_bytes(bytes[0..8].try_into().map_err(|_| to_err())?),
             compression_level: bytes[8],
-            column_count: u16::from_le_bytes(bytes[9..11].try_into().unwrap()),
-            row_count: u64::from_le_bytes(bytes[11..19].try_into().unwrap()),
-            reserved: bytes[19..32].try_into().unwrap(),
+            column_count: u16::from_le_bytes(bytes[9..11].try_into().map_err(|_| to_err())?),
+            row_count: u64::from_le_bytes(bytes[11..19].try_into().map_err(|_| to_err())?),
+            reserved: bytes[19..32].try_into().map_err(|_| to_err())?,
         })
     }
 }
@@ -256,10 +258,11 @@ impl FormatV3Metadata {
 }
 
 /// Compression level
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 pub enum CompressionLevel {
     Fast = 0,
+    #[default]
     Balanced = 1,
     Best = 2,
 }
@@ -274,11 +277,7 @@ impl CompressionLevel {
     }
 }
 
-impl Default for CompressionLevel {
-    fn default() -> Self {
-        Self::Balanced
-    }
-}
+
 
 /// Format v3 writer
 pub struct FormatV3Writer {

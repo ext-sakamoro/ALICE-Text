@@ -80,13 +80,14 @@ impl ExceptionDecoder {
     fn parse_binary_payload(&self, data: &[u8]) -> Result<(Vec<PatternMatch>, String)> {
         use crate::pattern_learner::PatternType;
 
+        let slice_err = || ALICETextError::DecompressionError("Payload slice error".to_string());
         let mut pos = 0;
 
         // Read match count
         if data.len() < 4 {
             return Err(ALICETextError::DecompressionError("Payload too short".to_string()));
         }
-        let match_count = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+        let match_count = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
         pos += 4;
 
         // Read matches
@@ -115,13 +116,13 @@ impl ExceptionDecoder {
             pos += 1;
 
             // Start and end
-            let start = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+            let start = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
             pos += 4;
-            let end = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+            let end = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
             pos += 4;
 
             // Text length and text
-            let text_len = u16::from_le_bytes(data[pos..pos + 2].try_into().unwrap()) as usize;
+            let text_len = u16::from_le_bytes(data[pos..pos + 2].try_into().map_err(|_| slice_err())?) as usize;
             pos += 2;
 
             if pos + text_len > data.len() {
@@ -143,7 +144,7 @@ impl ExceptionDecoder {
         if pos + 4 > data.len() {
             return Err(ALICETextError::DecompressionError("Missing processed text length".to_string()));
         }
-        let text_len = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+        let text_len = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
         pos += 4;
 
         if pos + text_len > data.len() {

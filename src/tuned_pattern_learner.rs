@@ -275,11 +275,7 @@ impl TunedPatternLearner {
 
         // Replace in reverse order to maintain positions
         for (i, m) in matches.iter().enumerate().rev() {
-            let placeholder = if i < 10 {
-                format!("{{{}}}", i)
-            } else {
-                format!("{{{}}}", i)
-            };
+            let placeholder = format!("{{{}}}", i);
             result = result.replace(&placeholder, &m.matched_text);
         }
 

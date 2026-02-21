@@ -8,18 +8,13 @@ use lzma_rs::lzma_compress;
 use serde::{Deserialize, Serialize};
 
 /// Encoding mode for compression
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EncodingMode {
     /// Pattern-based encoding (lightweight, good for structured logs)
+    #[default]
     Pattern,
     /// N-gram based encoding (better compression, more CPU)
     NGram,
-}
-
-impl Default for EncodingMode {
-    fn default() -> Self {
-        EncodingMode::Pattern
-    }
 }
 
 /// Header for encoded data
@@ -107,13 +102,14 @@ impl ExceptionHeader {
             }
         };
 
+        let to_err = || ALICETextError::DecompressionError("Header slice error".to_string());
         Ok(Self {
             mode,
-            original_length: u32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-            token_count: u32::from_le_bytes(bytes[8..12].try_into().unwrap()),
-            exception_count: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
-            pattern_db_length: u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
-            compressed_length: u32::from_le_bytes(bytes[20..24].try_into().unwrap()),
+            original_length: u32::from_le_bytes(bytes[4..8].try_into().map_err(|_| to_err())?),
+            token_count: u32::from_le_bytes(bytes[8..12].try_into().map_err(|_| to_err())?),
+            exception_count: u32::from_le_bytes(bytes[12..16].try_into().map_err(|_| to_err())?),
+            pattern_db_length: u32::from_le_bytes(bytes[16..20].try_into().map_err(|_| to_err())?),
+            compressed_length: u32::from_le_bytes(bytes[20..24].try_into().map_err(|_| to_err())?),
         })
     }
 }

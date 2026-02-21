@@ -13,12 +13,13 @@ use serde::{Deserialize, Serialize};
 pub const TUNED_VERSION: (u8, u8) = (2, 0);
 
 /// Compression mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[repr(u8)]
 pub enum CompressionMode {
     /// Fast mode (zstd level 1-3)
     Fast = 0,
     /// Balanced mode (zstd level 5-10)
+    #[default]
     Balanced = 1,
     /// Best compression (zstd level 15-22)
     Best = 2,
@@ -34,11 +35,7 @@ impl CompressionMode {
     }
 }
 
-impl Default for CompressionMode {
-    fn default() -> Self {
-        Self::Balanced
-    }
-}
+
 
 /// Header for tuned compressed data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,16 +74,17 @@ impl TunedHeader {
             ));
         }
 
+        let to_err = || ALICETextError::DecompressionError("Header slice error".to_string());
         Ok(Self {
-            original_length: u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+            original_length: u64::from_le_bytes(bytes[0..8].try_into().map_err(|_| to_err())?),
             mode: match bytes[8] {
                 0 => CompressionMode::Fast,
                 1 => CompressionMode::Balanced,
                 2 => CompressionMode::Best,
                 _ => CompressionMode::Balanced,
             },
-            pattern_count: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
-            skeleton_length: u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
+            pattern_count: u32::from_le_bytes(bytes[12..16].try_into().map_err(|_| to_err())?),
+            skeleton_length: u32::from_le_bytes(bytes[16..20].try_into().map_err(|_| to_err())?),
         })
     }
 }

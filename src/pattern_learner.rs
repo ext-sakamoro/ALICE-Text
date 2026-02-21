@@ -4,6 +4,7 @@
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 /// Types of patterns that can be detected
@@ -191,7 +192,7 @@ impl PatternLearner {
         ];
 
         // Sort by priority (highest first)
-        pattern_types.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        pattern_types.sort_by_key(|b| Reverse(b.priority()));
 
         let patterns = pattern_types
             .into_iter()
@@ -222,9 +223,7 @@ impl PatternLearner {
                 }
 
                 // Mark region as covered
-                for i in start..end {
-                    covered[i] = true;
-                }
+                covered[start..end].iter_mut().for_each(|c| *c = true);
 
                 db.add_match(*pattern_type, mat.as_str());
             }
@@ -250,9 +249,7 @@ impl PatternLearner {
                 }
 
                 // Mark region as covered
-                for i in start..end {
-                    covered[i] = true;
-                }
+                covered[start..end].iter_mut().for_each(|c| *c = true);
 
                 matches.push(PatternMatch {
                     pattern_type: *pattern_type,

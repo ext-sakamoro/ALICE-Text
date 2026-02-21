@@ -278,7 +278,7 @@ impl<S: QuerySource> QueryEngine<S> {
         // Typed comparison dispatch - no String allocations in hot loop!
         match col_type {
             ColumnType::LogLevels => {
-                let target = LogLevel::from_str(value) as u8;
+                let target = LogLevel::parse_level(value) as u8;
                 if let Some(data) = &partial.log_levels {
                     Ok(self.scan_primitive(data, op, target))
                 } else {
