@@ -26,7 +26,7 @@ pub enum PatternType {
     LogLevel,
     /// File path (/var/log/app.log)
     Path,
-    /// URL (https://example.com)
+    /// URL (<https://example.com>)
     URL,
     /// Numeric value
     Number,
@@ -42,12 +42,18 @@ impl PatternType {
     /// Get the regex pattern for this type
     pub fn regex_pattern(&self) -> &'static str {
         match self {
-            PatternType::Timestamp => r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?",
+            PatternType::Timestamp => {
+                r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?"
+            }
             PatternType::Date => r"\b\d{4}-\d{2}-\d{2}\b",
             PatternType::Time => r"\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b",
-            PatternType::IPv4 => r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
+            PatternType::IPv4 => {
+                r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+            }
             PatternType::IPv6 => r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b",
-            PatternType::UUID => r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b",
+            PatternType::UUID => {
+                r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+            }
             PatternType::LogLevel => r"\b(?:DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL|TRACE|CRITICAL)\b",
             PatternType::Path => r"(?:/[a-zA-Z0-9._-]+)+/?",
             PatternType::URL => r#"https?://[^\s<>"']+"#,
@@ -196,11 +202,7 @@ impl PatternLearner {
 
         let patterns = pattern_types
             .into_iter()
-            .filter_map(|pt| {
-                Regex::new(pt.regex_pattern())
-                    .ok()
-                    .map(|re| (pt, re))
-            })
+            .filter_map(|pt| Regex::new(pt.regex_pattern()).ok().map(|re| (pt, re)))
             .collect();
 
         Self { patterns }
@@ -368,5 +370,90 @@ mod tests {
         let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
 
         assert!(types.contains(&PatternType::URL));
+    }
+
+    #[test]
+    fn test_email_detection() {
+        let learner = PatternLearner::new();
+        let text = "Contact admin@example.com for support";
+        let matches = learner.find_matches(text);
+        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
+        assert!(types.contains(&PatternType::Email));
+    }
+
+    #[test]
+    fn test_hex_detection() {
+        let learner = PatternLearner::new();
+        let text = "Memory at 0xDEADBEEF was freed";
+        let matches = learner.find_matches(text);
+        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
+        assert!(types.contains(&PatternType::Hex));
+    }
+
+    #[test]
+    fn test_empty_text_no_matches() {
+        let learner = PatternLearner::new();
+        let matches = learner.find_matches("");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_no_patterns_in_plain_words() {
+        let learner = PatternLearner::new();
+        // "hello" should not match any structured patterns except Number for stray digits
+        let text = "hello world";
+        let matches = learner.find_matches(text);
+        // No timestamps, IPs, UUIDs, URLs, emails, hex, or log levels
+        for m in &matches {
+            assert_ne!(m.pattern_type, PatternType::Timestamp);
+            assert_ne!(m.pattern_type, PatternType::IPv4);
+            assert_ne!(m.pattern_type, PatternType::UUID);
+            assert_ne!(m.pattern_type, PatternType::URL);
+            assert_ne!(m.pattern_type, PatternType::Email);
+            assert_ne!(m.pattern_type, PatternType::Hex);
+        }
+    }
+
+    #[test]
+    fn test_pattern_priority_order() {
+        // Timestamp should have higher priority than Date
+        assert!(PatternType::Timestamp.priority() > PatternType::Date.priority());
+        // UUID > Email > URL > IPv4
+        assert!(PatternType::UUID.priority() > PatternType::Email.priority());
+        assert!(PatternType::Email.priority() > PatternType::URL.priority());
+        assert!(PatternType::URL.priority() > PatternType::IPv4.priority());
+    }
+
+    #[test]
+    fn test_pattern_database_serialization() {
+        let learner = PatternLearner::new();
+        let text = "2024-01-15 INFO 192.168.1.1";
+        let db = learner.learn(text);
+        let bytes = db.to_bytes().unwrap();
+        let restored = PatternDatabase::from_bytes(&bytes).unwrap();
+        assert_eq!(restored.total_matches, db.total_matches);
+    }
+
+    #[test]
+    fn test_pattern_database_top_patterns() {
+        let learner = PatternLearner::new();
+        let text = "2024-01-15 INFO test\n2024-01-16 WARN test\n2024-01-17 ERROR test";
+        let db = learner.learn(text);
+        let top = db.top_patterns(2);
+        assert!(!top.is_empty());
+        // The first pattern should have count >= the second
+        if top.len() >= 2 {
+            assert!(top[0].1.count >= top[1].1.count);
+        }
+    }
+
+    #[test]
+    fn test_learned_pattern_examples_capped() {
+        let mut pattern = LearnedPattern::new(PatternType::IPv4);
+        for i in 0..20 {
+            pattern.add_example(&format!("192.168.1.{}", i));
+        }
+        assert_eq!(pattern.count, 20);
+        assert!(pattern.examples.len() <= 5);
     }
 }

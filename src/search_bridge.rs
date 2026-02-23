@@ -4,8 +4,8 @@
 //!
 //! Author: Moroya Sakamoto
 
-use alice_search::FmIndex;
 use crate::ALICEText;
+use alice_search::FmIndex;
 
 /// Search hit with offset and context range
 #[derive(Debug, Clone)]
@@ -54,7 +54,11 @@ impl CompressedSearchIndex {
             .map(|offset| {
                 let start = offset.saturating_sub(context_radius);
                 let end = (offset + query.len() + context_radius).min(self.text_len);
-                SearchHit { offset, context_start: start, context_end: end }
+                SearchHit {
+                    offset,
+                    context_start: start,
+                    context_end: end,
+                }
             })
             .collect()
     }

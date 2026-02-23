@@ -377,4 +377,67 @@ mod tests {
         assert!(elapsed.as_millis() < 100, "Took too long: {:?}", elapsed);
         assert!(!matches.is_empty());
     }
+
+    #[test]
+    fn test_pattern_type_u8_roundtrip() {
+        for i in 0..=12u8 {
+            let pt = PatternType::from_u8(i);
+            assert_eq!(pt.as_u8(), i);
+        }
+        // Out-of-range values map to Custom
+        assert_eq!(PatternType::from_u8(100), PatternType::Custom);
+        assert_eq!(PatternType::from_u8(255), PatternType::Custom);
+    }
+
+    #[test]
+    fn test_owned_match_from_tuned_match() {
+        let tuned = TunedMatch {
+            pattern_type: PatternType::IPv4,
+            start: 10,
+            end: 23,
+            matched_text: std::borrow::Cow::Borrowed("192.168.1.1"),
+        };
+        let owned: OwnedMatch = tuned.into();
+        assert_eq!(owned.pattern_type, PatternType::IPv4);
+        assert_eq!(owned.start, 10);
+        assert_eq!(owned.end, 23);
+        assert_eq!(owned.matched_text, "192.168.1.1");
+    }
+
+    #[test]
+    fn test_empty_text_matches() {
+        let learner = TunedPatternLearner::new();
+        let matches = learner.find_matches("");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_skeleton_no_patterns() {
+        let learner = TunedPatternLearner::new();
+        let text = "just plain text";
+        let (skeleton, matches) = learner.extract_skeleton(text);
+        assert_eq!(skeleton, text);
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_get_stats() {
+        let learner = TunedPatternLearner::new();
+        let text = "2024-01-15 INFO 192.168.1.1 ERROR 192.168.1.2";
+        let matches = learner.find_matches(text);
+        let stats = learner.get_stats(&matches);
+        // Should have at least Date and IPv4 and LogLevel stats
+        assert!(stats.contains_key(&PatternType::IPv4));
+        assert!(stats.contains_key(&PatternType::LogLevel));
+        assert!(*stats.get(&PatternType::IPv4).unwrap() >= 2);
+    }
+
+    #[test]
+    fn test_ipv6_detection() {
+        let learner = TunedPatternLearner::new();
+        let text = "IPv6: 2001:0db8:85a3:0000:0000:8a2e:0370:7334";
+        let matches = learner.find_matches(text);
+        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
+        assert!(types.contains(&PatternType::IPv6));
+    }
 }

@@ -56,18 +56,18 @@ impl LogLevel {
 /// Supported timestamp formats for parsing
 /// Ordered by specificity (most specific first)
 const TIMESTAMP_FORMATS_NAIVE: &[&str] = &[
-    "%Y-%m-%d %H:%M:%S%.f",       // 2024-01-15 10:30:45.123
-    "%Y-%m-%d %H:%M:%S",          // 2024-01-15 10:30:45
-    "%Y-%m-%dT%H:%M:%S%.f",       // 2024-01-15T10:30:45.123
-    "%Y-%m-%dT%H:%M:%S",          // 2024-01-15T10:30:45
+    "%Y-%m-%d %H:%M:%S%.f", // 2024-01-15 10:30:45.123
+    "%Y-%m-%d %H:%M:%S",    // 2024-01-15 10:30:45
+    "%Y-%m-%dT%H:%M:%S%.f", // 2024-01-15T10:30:45.123
+    "%Y-%m-%dT%H:%M:%S",    // 2024-01-15T10:30:45
 ];
 
 /// Timestamp formats with timezone (Z or +09:00)
 const TIMESTAMP_FORMATS_TZ: &[&str] = &[
-    "%Y-%m-%dT%H:%M:%S%.f%:z",    // 2024-01-15T10:30:45.123+09:00
-    "%Y-%m-%dT%H:%M:%S%:z",       // 2024-01-15T10:30:45+09:00
-    "%Y-%m-%dT%H:%M:%S%.fZ",      // 2024-01-15T10:30:45.123Z
-    "%Y-%m-%dT%H:%M:%SZ",         // 2024-01-15T10:30:45Z
+    "%Y-%m-%dT%H:%M:%S%.f%:z", // 2024-01-15T10:30:45.123+09:00
+    "%Y-%m-%dT%H:%M:%S%:z",    // 2024-01-15T10:30:45+09:00
+    "%Y-%m-%dT%H:%M:%S%.fZ",   // 2024-01-15T10:30:45.123Z
+    "%Y-%m-%dT%H:%M:%SZ",      // 2024-01-15T10:30:45Z
 ];
 
 /// Timestamp with delta encoding support
@@ -82,7 +82,7 @@ pub struct TimestampColumn {
     /// Base timestamp in milliseconds (epoch)
     pub base_ms: Option<i64>,
     /// Delta values in milliseconds from previous timestamp
-    /// Delta[0] is always 0 (base), Delta[n] = Timestamp[n] - Timestamp[n-1]
+    /// `Delta[0]` is always 0 (base), `Delta[n] = Timestamp[n] - Timestamp[n-1]`
     pub deltas: Vec<i64>,
     /// Fallback: raw strings for timestamps that couldn't be parsed
     pub raw: Vec<String>,
@@ -97,8 +97,6 @@ pub struct TimestampColumn {
     #[serde(default)]
     pub base_offset_secs: Option<i32>,
 }
-
-
 
 /// Cached format type
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
@@ -409,7 +407,7 @@ impl ColumnarPayload {
                 // Use delta encoding for timestamps
                 let (is_delta, idx) = self.timestamps.add(text);
                 if is_delta {
-                    (0u8, idx as u32)  // Delta-encoded: col_type 0
+                    (0u8, idx as u32) // Delta-encoded: col_type 0
                 } else {
                     (13u8, idx as u32) // Raw string: col_type 13
                 }
@@ -568,12 +566,16 @@ impl ColumnarPayload {
         let ts_prefix_sums = self.timestamps.prepare_for_read();
 
         // Estimate capacity from tokens
-        let estimated_size: usize = self.skeleton_tokens.iter().map(|t| {
-            match t {
-                SkeletonToken::Text(s) => s.len(),
-                SkeletonToken::Ref(_) => 20, // Average placeholder value length
-            }
-        }).sum();
+        let estimated_size: usize = self
+            .skeleton_tokens
+            .iter()
+            .map(|t| {
+                match t {
+                    SkeletonToken::Text(s) => s.len(),
+                    SkeletonToken::Ref(_) => 20, // Average placeholder value length
+                }
+            })
+            .sum();
 
         let mut result = String::with_capacity(estimated_size);
 
@@ -688,10 +690,10 @@ fn format_ipv6(ip: u128) -> String {
 
 /// Date formats for parsing
 const DATE_FORMATS: &[&str] = &[
-    "%Y-%m-%d",    // 2024-01-15
-    "%Y/%m/%d",    // 2024/01/15
-    "%d-%m-%Y",    // 15-01-2024
-    "%d/%m/%Y",    // 15/01/2024
+    "%Y-%m-%d", // 2024-01-15
+    "%Y/%m/%d", // 2024/01/15
+    "%d-%m-%Y", // 15-01-2024
+    "%d/%m/%Y", // 15/01/2024
 ];
 
 /// Parse date string to epoch days (days since 1970-01-01)
@@ -722,9 +724,9 @@ fn format_date_from_days(days: u32) -> String {
 
 /// Time formats for parsing
 const TIME_FORMATS: &[&str] = &[
-    "%H:%M:%S%.f",  // 10:30:45.123
-    "%H:%M:%S",     // 10:30:45
-    "%H:%M",        // 10:30
+    "%H:%M:%S%.f", // 10:30:45.123
+    "%H:%M:%S",    // 10:30:45
+    "%H:%M",       // 10:30
 ];
 
 /// Parse time string to milliseconds from midnight
@@ -870,5 +872,134 @@ mod tests {
 
         assert_eq!(payload.emails.len(), 2);
         assert!(payload.emails.contains(&"admin@example.com".to_string()));
+    }
+
+    #[test]
+    fn test_uuid_roundtrip() {
+        let uuid_str = "550e8400-e29b-41d4-a716-446655440000";
+        let parsed = parse_uuid(uuid_str).unwrap();
+        let formatted = format_uuid(parsed);
+        assert_eq!(uuid_str, formatted);
+    }
+
+    #[test]
+    fn test_uuid_parse_invalid() {
+        assert!(parse_uuid("not-a-uuid").is_none());
+        assert!(parse_uuid("").is_none());
+        assert!(parse_uuid("550e8400-e29b-41d4-a716-44665544000").is_none()); // too short
+    }
+
+    #[test]
+    fn test_ipv4_boundary_values() {
+        assert_eq!(parse_ipv4("0.0.0.0"), Some(0));
+        assert_eq!(parse_ipv4("255.255.255.255"), Some(0xFFFFFFFF));
+        assert_eq!(format_ipv4(0), "0.0.0.0");
+        assert_eq!(format_ipv4(0xFFFFFFFF), "255.255.255.255");
+    }
+
+    #[test]
+    fn test_log_level_all_variants() {
+        assert_eq!(LogLevel::parse_level("TRACE").to_str(), "TRACE");
+        assert_eq!(LogLevel::parse_level("DEBUG").to_str(), "DEBUG");
+        assert_eq!(LogLevel::parse_level("INFO").to_str(), "INFO");
+        assert_eq!(LogLevel::parse_level("WARN").to_str(), "WARN");
+        assert_eq!(LogLevel::parse_level("WARNING").to_str(), "WARN");
+        assert_eq!(LogLevel::parse_level("ERROR").to_str(), "ERROR");
+        assert_eq!(LogLevel::parse_level("FATAL").to_str(), "FATAL");
+        assert_eq!(LogLevel::parse_level("CRITICAL").to_str(), "CRITICAL");
+        assert_eq!(LogLevel::parse_level("BOGUS").to_str(), "UNKNOWN");
+    }
+
+    #[test]
+    fn test_log_level_case_insensitive() {
+        assert_eq!(LogLevel::parse_level("info") as u8, LogLevel::Info as u8);
+        assert_eq!(LogLevel::parse_level("Error") as u8, LogLevel::Error as u8);
+    }
+
+    #[test]
+    fn test_format_number_integer() {
+        assert_eq!(format_number(42.0), "42");
+        assert_eq!(format_number(0.0), "0");
+        assert_eq!(format_number(-100.0), "-100");
+    }
+
+    #[test]
+    fn test_format_number_float() {
+        let result = format_number(3.14);
+        assert!(result.contains("3.14"));
+    }
+
+    #[test]
+    fn test_columnar_empty_text() {
+        let encoder = ColumnarEncoder::new();
+        let payload = encoder.encode("");
+        let restored = encoder.decode(&payload);
+        assert_eq!("", restored);
+    }
+
+    #[test]
+    fn test_columnar_no_patterns() {
+        let encoder = ColumnarEncoder::new();
+        let text = "just plain text without any patterns";
+        let payload = encoder.encode(text);
+        let restored = encoder.decode(&payload);
+        assert_eq!(text, restored);
+    }
+
+    #[test]
+    fn test_timestamp_delta_encoding() {
+        let mut ts = TimestampColumn::default();
+        // Add two timestamps 1 second apart
+        let (is_delta1, _) = ts.add("2024-01-15 10:30:45");
+        let (is_delta2, _) = ts.add("2024-01-15 10:30:46");
+        assert!(is_delta1);
+        assert!(is_delta2);
+        assert_eq!(ts.deltas.len(), 2);
+        assert_eq!(ts.deltas[0], 0); // base delta is 0
+        assert_eq!(ts.deltas[1], 1000); // 1 second = 1000ms
+    }
+
+    #[test]
+    fn test_timestamp_unparseable_fallback() {
+        let mut ts = TimestampColumn::default();
+        let (is_delta, _) = ts.add("not-a-timestamp");
+        assert!(!is_delta);
+        assert_eq!(ts.raw.len(), 1);
+        assert_eq!(ts.raw[0], "not-a-timestamp");
+    }
+
+    #[test]
+    fn test_timestamp_column_empty() {
+        let ts = TimestampColumn::default();
+        assert!(ts.is_empty());
+        assert_eq!(ts.len(), 0);
+    }
+
+    #[test]
+    fn test_date_to_days_roundtrip() {
+        let days = parse_date_to_days("2024-01-15").unwrap();
+        let formatted = format_date_from_days(days);
+        assert_eq!(formatted, "2024-01-15");
+    }
+
+    #[test]
+    fn test_time_to_ms_roundtrip() {
+        let ms = parse_time_to_ms("10:30:45").unwrap();
+        let formatted = format_time_from_ms(ms);
+        assert_eq!(formatted, "10:30:45");
+    }
+
+    #[test]
+    fn test_time_to_ms_with_millis() {
+        let ms = parse_time_to_ms("10:30:45.500").unwrap();
+        let formatted = format_time_from_ms(ms);
+        assert_eq!(formatted, "10:30:45.500");
+    }
+
+    #[test]
+    fn test_payload_is_empty_and_len() {
+        let payload = ColumnarPayload::new("test".to_string());
+        assert!(payload.timestamps.is_empty());
+        assert_eq!(payload.timestamps.len(), 0);
     }
 }

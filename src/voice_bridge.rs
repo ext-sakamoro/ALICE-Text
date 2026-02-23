@@ -26,8 +26,8 @@
 //!                     ALICE-Voice VoiceCodec (select layer)
 //! ```
 
-use alice_voice::{VoiceQuality, VoiceCodecConfig};
 use crate::{ALICEText, EncodingMode};
+use alice_voice::{VoiceCodecConfig, VoiceQuality};
 
 /// Speech encoding hints derived from text analysis.
 ///

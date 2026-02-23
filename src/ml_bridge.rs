@@ -3,7 +3,7 @@
 //! Ternary neural inference for next-token prediction in text compression.
 //! Uses 1.58-bit weights for ultra-fast context → prediction mapping.
 
-use alice_ml::{TernaryWeight, ternary_matvec};
+use alice_ml::{ternary_matvec, TernaryWeight};
 
 /// ML-accelerated text predictor.
 ///
@@ -53,7 +53,9 @@ impl TextPredictor {
             sum += *v;
         }
         if sum > 0.0 {
-            for v in slice.iter_mut() { *v /= sum; }
+            for v in slice.iter_mut() {
+                *v /= sum;
+            }
         }
     }
 
@@ -61,14 +63,22 @@ impl TextPredictor {
     pub fn predict_top(&self, context: &[f32]) -> (usize, f32) {
         let mut logits = vec![0.0f32; self.vocab_size];
         self.predict_logits(context, &mut logits);
-        let (idx, &val) = logits.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)).unwrap();
+        let (idx, &val) = logits
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .unwrap();
         (idx, val)
     }
 
     /// Context window size.
-    pub fn context_size(&self) -> usize { self.context_size }
+    pub fn context_size(&self) -> usize {
+        self.context_size
+    }
     /// Vocabulary size.
-    pub fn vocab_size(&self) -> usize { self.vocab_size }
+    pub fn vocab_size(&self) -> usize {
+        self.vocab_size
+    }
 }
 
 #[cfg(test)]

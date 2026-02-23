@@ -85,16 +85,21 @@ impl ExceptionDecoder {
 
         // Read match count
         if data.len() < 4 {
-            return Err(ALICETextError::DecompressionError("Payload too short".to_string()));
+            return Err(ALICETextError::DecompressionError(
+                "Payload too short".to_string(),
+            ));
         }
-        let match_count = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
+        let match_count =
+            u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
         pos += 4;
 
         // Read matches
         let mut pattern_matches = Vec::with_capacity(match_count);
         for i in 0..match_count {
             if pos + 11 > data.len() {
-                return Err(ALICETextError::DecompressionError("Truncated match data".to_string()));
+                return Err(ALICETextError::DecompressionError(
+                    "Truncated match data".to_string(),
+                ));
             }
 
             // Pattern type
@@ -116,17 +121,23 @@ impl ExceptionDecoder {
             pos += 1;
 
             // Start and end
-            let start = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
+            let start = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?)
+                as usize;
             pos += 4;
-            let end = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
+            let end = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?)
+                as usize;
             pos += 4;
 
             // Text length and text
-            let text_len = u16::from_le_bytes(data[pos..pos + 2].try_into().map_err(|_| slice_err())?) as usize;
+            let text_len =
+                u16::from_le_bytes(data[pos..pos + 2].try_into().map_err(|_| slice_err())?)
+                    as usize;
             pos += 2;
 
             if pos + text_len > data.len() {
-                return Err(ALICETextError::DecompressionError("Truncated text data".to_string()));
+                return Err(ALICETextError::DecompressionError(
+                    "Truncated text data".to_string(),
+                ));
             }
             let matched_text = String::from_utf8_lossy(&data[pos..pos + text_len]).to_string();
             pos += text_len;
@@ -142,13 +153,18 @@ impl ExceptionDecoder {
 
         // Read processed text
         if pos + 4 > data.len() {
-            return Err(ALICETextError::DecompressionError("Missing processed text length".to_string()));
+            return Err(ALICETextError::DecompressionError(
+                "Missing processed text length".to_string(),
+            ));
         }
-        let text_len = u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
+        let text_len =
+            u32::from_le_bytes(data[pos..pos + 4].try_into().map_err(|_| slice_err())?) as usize;
         pos += 4;
 
         if pos + text_len > data.len() {
-            return Err(ALICETextError::DecompressionError("Truncated processed text".to_string()));
+            return Err(ALICETextError::DecompressionError(
+                "Truncated processed text".to_string(),
+            ));
         }
         let processed_text = String::from_utf8_lossy(&data[pos..pos + text_len]).to_string();
 
@@ -310,6 +326,63 @@ mod tests {
         let text = "2024-01-15 10:30:45 INFO Server started\n\
                     2024-01-15 10:30:46 INFO Listening on port 8080\n\
                     2024-01-15 10:31:00 WARN High memory usage";
+
+        let compressed = encoder.encode_to_bytes(text).unwrap();
+        let decompressed = decoder.decode_from_bytes(&compressed).unwrap();
+
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_decode_data_too_short() {
+        let decoder = ExceptionDecoder::new();
+        let result = decoder.decode_from_bytes(&[0u8; 10]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decode_invalid_magic() {
+        let decoder = ExceptionDecoder::new();
+        let mut data = vec![0u8; 50];
+        data[0..8].copy_from_slice(b"BADMAGIC");
+        let result = decoder.decode_from_bytes(&data);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            crate::ALICETextError::InvalidMagic => {}
+            other => panic!("Expected InvalidMagic, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_decode_future_version() {
+        let decoder = ExceptionDecoder::new();
+        let mut data = vec![0u8; 50];
+        data[0..8].copy_from_slice(crate::ALICE_TEXT_MAGIC);
+        data[8] = 255; // Future major version
+        data[9] = 0;
+        let result = decoder.decode_from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_returns_false_for_empty() {
+        let decoder = ExceptionDecoder::new();
+        assert!(!decoder.verify(&[]).unwrap());
+    }
+
+    #[test]
+    fn test_read_header_invalid_magic() {
+        let decoder = ExceptionDecoder::new();
+        let data = vec![0u8; 50];
+        let result = decoder.read_header(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_roundtrip_unicode_text() {
+        let encoder = ExceptionEncoder::new(EncodingMode::Pattern);
+        let decoder = ExceptionDecoder::new();
+        let text = "Unicode: cafe\u{0301} \u{1F600} \u{2603} \u{4e16}\u{754c}";
 
         let compressed = encoder.encode_to_bytes(text).unwrap();
         let decompressed = decoder.decode_from_bytes(&compressed).unwrap();

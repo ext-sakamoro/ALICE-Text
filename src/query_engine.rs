@@ -20,10 +20,10 @@
 //! let result = engine.query(&["timestamps", "ipv4"], "log_levels", Op::Eq, "ERROR")?;
 //! ```
 
+use crate::columnar_encoder::LogLevel;
 use crate::format_v3::{
     ColumnType, CompressionLevel, FormatV3Metadata, FormatV3Writer, PartialPayload,
 };
-use crate::columnar_encoder::LogLevel;
 use crate::{ALICETextError, Result};
 use chrono::NaiveDateTime;
 use memmap2::Mmap;
@@ -75,7 +75,8 @@ impl QueryResult {
         output.push('\n');
 
         for row in &self.rows {
-            let values: Vec<&str> = self.columns
+            let values: Vec<&str> = self
+                .columns
                 .iter()
                 .map(|c| row.values.get(c).map(|s| s.as_str()).unwrap_or(""))
                 .collect();
@@ -158,15 +159,15 @@ impl QueryEngine<MmapSource> {
     /// Open a file with memory mapping for maximum speed
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path.as_ref()).map_err(ALICETextError::Io)?;
-        let mmap = unsafe {
-            Mmap::map(&file).map_err(ALICETextError::Io)?
-        };
+        let mmap = unsafe { Mmap::map(&file).map_err(ALICETextError::Io)? };
 
         let mut cursor = Cursor::new(&mmap[..]);
         let metadata = FormatV3Metadata::read_from(&mut cursor)?;
 
         Ok(Self {
-            source: MmapSource { mmap: Arc::new(mmap) },
+            source: MmapSource {
+                mmap: Arc::new(mmap),
+            },
             metadata,
         })
     }
@@ -182,7 +183,9 @@ impl QueryEngine<BufferSource> {
         let metadata = FormatV3Metadata::read_from(&mut cursor)?;
 
         Ok(Self {
-            source: BufferSource { data: Arc::new(data) },
+            source: BufferSource {
+                data: Arc::new(data),
+            },
             metadata,
         })
     }
@@ -204,12 +207,17 @@ impl<S: QuerySource> QueryEngine<S> {
             },
             row_count: self.metadata.header.row_count,
             column_count: self.metadata.columns.len(),
-            columns: self.metadata.columns.iter().map(|c| ColumnStats {
-                name: c.col_type.name().to_string(),
-                col_type: c.col_type,
-                row_count: c.row_count,
-                compressed_size: c.compressed_size,
-            }).collect(),
+            columns: self
+                .metadata
+                .columns
+                .iter()
+                .map(|c| ColumnStats {
+                    name: c.col_type.name().to_string(),
+                    col_type: c.col_type,
+                    row_count: c.row_count,
+                    compressed_size: c.compressed_size,
+                })
+                .collect(),
         }
     }
 
@@ -220,7 +228,10 @@ impl<S: QuerySource> QueryEngine<S> {
 
     /// Check if column exists
     pub fn has_column(&self, name: &str) -> bool {
-        self.metadata.columns.iter().any(|c| c.col_type.name() == name)
+        self.metadata
+            .columns
+            .iter()
+            .any(|c| c.col_type.name() == name)
     }
 
     /// Read a single column with String conversion (backward compatible)
@@ -245,7 +256,8 @@ impl<S: QuerySource> QueryEngine<S> {
         let partials = partials?;
 
         // Get max row count
-        let max_rows = col_types.iter()
+        let max_rows = col_types
+            .iter()
             .filter_map(|ct| self.metadata.get_column(*ct))
             .map(|e| e.row_count as usize)
             .max()
@@ -258,7 +270,9 @@ impl<S: QuerySource> QueryEngine<S> {
         };
 
         for i in 0..max_rows {
-            let mut row = QueryRow { values: HashMap::new() };
+            let mut row = QueryRow {
+                values: HashMap::new(),
+            };
             for (j, name) in names.iter().enumerate() {
                 if let Some(value) = self.get_value_at(&partials[j], col_types[j], i) {
                     row.values.insert(name.to_string(), value);
@@ -396,7 +410,9 @@ impl<S: QuerySource> QueryEngine<S> {
         };
 
         for &idx in &indices {
-            let mut row = QueryRow { values: HashMap::new() };
+            let mut row = QueryRow {
+                values: HashMap::new(),
+            };
             for (j, name) in select_columns.iter().enumerate() {
                 if let Some(val) = self.get_value_at(&partials[j], col_types[j], idx) {
                     row.values.insert(name.to_string(), val);
@@ -502,9 +518,10 @@ impl<S: QuerySource> QueryEngine<S> {
             "others" => Ok(ColumnType::Others),
             "placeholder_map" => Ok(ColumnType::PlaceholderMap),
             "timestamps_raw" => Ok(ColumnType::TimestampsRaw),
-            _ => Err(ALICETextError::DecompressionError(
-                format!("Unknown column: {}", name),
-            )),
+            _ => Err(ALICETextError::DecompressionError(format!(
+                "Unknown column: {}",
+                name
+            ))),
         }
     }
 
@@ -525,7 +542,10 @@ impl<S: QuerySource> QueryEngine<S> {
     fn parse_uuid(&self, s: &str) -> Result<u128> {
         let hex: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
         if hex.len() != 32 {
-            return Err(ALICETextError::DecompressionError(format!("Invalid UUID: {}", s)));
+            return Err(ALICETextError::DecompressionError(format!(
+                "Invalid UUID: {}",
+                s
+            )));
         }
         u128::from_str_radix(&hex, 16)
             .map_err(|_| ALICETextError::DecompressionError(format!("Invalid UUID hex: {}", s)))
@@ -536,11 +556,11 @@ impl<S: QuerySource> QueryEngine<S> {
     fn parse_query_timestamp(&self, s: &str) -> Result<i64> {
         // Try common formats
         let formats = [
-            "%Y-%m-%d %H:%M:%S",      // 2024-01-15 10:30:45
-            "%Y-%m-%dT%H:%M:%S",      // 2024-01-15T10:30:45
-            "%Y-%m-%d %H:%M:%S%.f",   // 2024-01-15 10:30:45.123
-            "%Y-%m-%dT%H:%M:%S%.f",   // 2024-01-15T10:30:45.123
-            "%Y-%m-%d",               // 2024-01-15 (assumes 00:00:00)
+            "%Y-%m-%d %H:%M:%S",    // 2024-01-15 10:30:45
+            "%Y-%m-%dT%H:%M:%S",    // 2024-01-15T10:30:45
+            "%Y-%m-%d %H:%M:%S%.f", // 2024-01-15 10:30:45.123
+            "%Y-%m-%dT%H:%M:%S%.f", // 2024-01-15T10:30:45.123
+            "%Y-%m-%d",             // 2024-01-15 (assumes 00:00:00)
         ];
 
         for fmt in &formats {
@@ -555,49 +575,68 @@ impl<S: QuerySource> QueryEngine<S> {
             return Ok(dt.and_utc().timestamp_millis());
         }
 
-        Err(ALICETextError::DecompressionError(
-            format!("Invalid timestamp format: {}. Expected YYYY-MM-DD HH:MM:SS", s)
-        ))
+        Err(ALICETextError::DecompressionError(format!(
+            "Invalid timestamp format: {}. Expected YYYY-MM-DD HH:MM:SS",
+            s
+        )))
     }
 
     // === Private: Value Extraction ===
 
-    fn partial_to_strings(&self, partial: &PartialPayload, col_type: ColumnType) -> Result<Vec<String>> {
+    fn partial_to_strings(
+        &self,
+        partial: &PartialPayload,
+        col_type: ColumnType,
+    ) -> Result<Vec<String>> {
         Ok(match col_type {
-            ColumnType::LogLevels => {
-                partial.log_level_strings().unwrap_or_default()
-            }
-            ColumnType::IPv4 => {
-                partial.ipv4_strings().unwrap_or_default()
-            }
-            ColumnType::IPv6 => {
-                partial.ipv6_addrs.as_ref().map(|addrs| {
-                    addrs.iter().map(|&ip| std::net::Ipv6Addr::from(ip).to_string()).collect()
-                }).unwrap_or_default()
-            }
-            ColumnType::Timestamps => {
-                partial.timestamp_strings().unwrap_or_default()
-            }
-            ColumnType::Numbers => {
-                partial.numbers.as_ref().map(|nums| {
-                    nums.iter().map(|n| {
-                        if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
-                            (*n as i64).to_string()
-                        } else {
-                            n.to_string()
-                        }
-                    }).collect()
-                }).unwrap_or_default()
-            }
-            ColumnType::UUIDs => {
-                partial.uuids.as_ref().map(|uuids| {
-                    uuids.iter().map(|&uuid| {
-                        let hex = format!("{:032x}", uuid);
-                        format!("{}-{}-{}-{}-{}",
-                            &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
-                    }).collect()
-                }).unwrap_or_default()
-            }
+            ColumnType::LogLevels => partial.log_level_strings().unwrap_or_default(),
+            ColumnType::IPv4 => partial.ipv4_strings().unwrap_or_default(),
+            ColumnType::IPv6 => partial
+                .ipv6_addrs
+                .as_ref()
+                .map(|addrs| {
+                    addrs
+                        .iter()
+                        .map(|&ip| std::net::Ipv6Addr::from(ip).to_string())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            ColumnType::Timestamps => partial.timestamp_strings().unwrap_or_default(),
+            ColumnType::Numbers => partial
+                .numbers
+                .as_ref()
+                .map(|nums| {
+                    nums.iter()
+                        .map(|n| {
+                            if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
+                                (*n as i64).to_string()
+                            } else {
+                                n.to_string()
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            ColumnType::UUIDs => partial
+                .uuids
+                .as_ref()
+                .map(|uuids| {
+                    uuids
+                        .iter()
+                        .map(|&uuid| {
+                            let hex = format!("{:032x}", uuid);
+                            format!(
+                                "{}-{}-{}-{}-{}",
+                                &hex[0..8],
+                                &hex[8..12],
+                                &hex[12..16],
+                                &hex[16..20],
+                                &hex[20..32]
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
             ColumnType::Emails => partial.emails.clone().unwrap_or_default(),
             ColumnType::URLs => partial.urls.clone().unwrap_or_default(),
             ColumnType::Paths => partial.paths.clone().unwrap_or_default(),
@@ -605,47 +644,59 @@ impl<S: QuerySource> QueryEngine<S> {
         })
     }
 
-    fn get_value_at(&self, partial: &PartialPayload, col_type: ColumnType, index: usize) -> Option<String> {
+    fn get_value_at(
+        &self,
+        partial: &PartialPayload,
+        col_type: ColumnType,
+        index: usize,
+    ) -> Option<String> {
         match col_type {
-            ColumnType::LogLevels => {
-                partial.log_levels.as_ref()?.get(index).map(|&l| {
-                    match l {
-                        0 => "TRACE", 1 => "DEBUG", 2 => "INFO", 3 => "WARN",
-                        4 => "ERROR", 5 => "FATAL", 6 => "CRITICAL", _ => "UNKNOWN",
-                    }.to_string()
-                })
-            }
-            ColumnType::IPv4 => {
-                partial.ipv4_addrs.as_ref()?.get(index).map(|&ip| {
-                    std::net::Ipv4Addr::from(ip).to_string()
-                })
-            }
-            ColumnType::IPv6 => {
-                partial.ipv6_addrs.as_ref()?.get(index).map(|&ip| {
-                    std::net::Ipv6Addr::from(ip).to_string()
-                })
-            }
+            ColumnType::LogLevels => partial.log_levels.as_ref()?.get(index).map(|&l| {
+                match l {
+                    0 => "TRACE",
+                    1 => "DEBUG",
+                    2 => "INFO",
+                    3 => "WARN",
+                    4 => "ERROR",
+                    5 => "FATAL",
+                    6 => "CRITICAL",
+                    _ => "UNKNOWN",
+                }
+                .to_string()
+            }),
+            ColumnType::IPv4 => partial
+                .ipv4_addrs
+                .as_ref()?
+                .get(index)
+                .map(|&ip| std::net::Ipv4Addr::from(ip).to_string()),
+            ColumnType::IPv6 => partial
+                .ipv6_addrs
+                .as_ref()?
+                .get(index)
+                .map(|&ip| std::net::Ipv6Addr::from(ip).to_string()),
             ColumnType::Timestamps => {
                 let ts = partial.timestamps.as_ref()?;
                 let prefix_sums = ts.prepare_for_read();
                 ts.get_delta(index, &prefix_sums)
             }
-            ColumnType::Numbers => {
-                partial.numbers.as_ref()?.get(index).map(|&n| {
-                    if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
-                        (n as i64).to_string()
-                    } else {
-                        n.to_string()
-                    }
-                })
-            }
-            ColumnType::UUIDs => {
-                partial.uuids.as_ref()?.get(index).map(|&uuid| {
-                    let hex = format!("{:032x}", uuid);
-                    format!("{}-{}-{}-{}-{}",
-                        &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
-                })
-            }
+            ColumnType::Numbers => partial.numbers.as_ref()?.get(index).map(|&n| {
+                if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
+                    (n as i64).to_string()
+                } else {
+                    n.to_string()
+                }
+            }),
+            ColumnType::UUIDs => partial.uuids.as_ref()?.get(index).map(|&uuid| {
+                let hex = format!("{:032x}", uuid);
+                format!(
+                    "{}-{}-{}-{}-{}",
+                    &hex[0..8],
+                    &hex[8..12],
+                    &hex[12..16],
+                    &hex[16..20],
+                    &hex[20..32]
+                )
+            }),
             ColumnType::Emails => partial.emails.as_ref()?.get(index).cloned(),
             ColumnType::URLs => partial.urls.as_ref()?.get(index).cloned(),
             ColumnType::Paths => partial.paths.as_ref()?.get(index).cloned(),
@@ -692,7 +743,8 @@ impl<'a, S: QuerySource> QueryBuilder<'a, S> {
         if let (Some(filter_col), Some(op), Some(filter_value)) =
             (self.filter_col, self.filter_op, self.filter_value)
         {
-            self.engine.query(&select_refs, &filter_col, op, &filter_value)
+            self.engine
+                .query(&select_refs, &filter_col, op, &filter_value)
         } else {
             self.engine.select_columns(&select_refs)
         }
@@ -783,12 +835,9 @@ mod tests {
         let engine = QueryEngine::from_reader(Cursor::new(&data)).unwrap();
 
         // Parallel column fetch + typed filter
-        let result = engine.query(
-            &["log_levels", "ipv4"],
-            "log_levels",
-            Op::Eq,
-            "ERROR",
-        ).unwrap();
+        let result = engine
+            .query(&["log_levels", "ipv4"], "log_levels", Op::Eq, "ERROR")
+            .unwrap();
 
         assert_eq!(result.len(), 2);
         for row in &result.rows {

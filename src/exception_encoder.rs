@@ -229,24 +229,23 @@ impl ExceptionEncoder {
 
         // Try pattern-based approach: store pattern values separately
         // This can help when patterns are highly repetitive
-        let (payload, use_pattern_mode) = if self.mode == EncodingMode::Pattern
-            && !encoded.pattern_matches.is_empty()
-        {
-            // Calculate overhead of pattern storage vs direct LZMA
-            let pattern_payload = self.create_payload(encoded)?;
-            let direct_compressed = self.compress_lzma(text_bytes)?;
-            let pattern_compressed = self.compress_lzma(&pattern_payload)?;
+        let (payload, use_pattern_mode) =
+            if self.mode == EncodingMode::Pattern && !encoded.pattern_matches.is_empty() {
+                // Calculate overhead of pattern storage vs direct LZMA
+                let pattern_payload = self.create_payload(encoded)?;
+                let direct_compressed = self.compress_lzma(text_bytes)?;
+                let pattern_compressed = self.compress_lzma(&pattern_payload)?;
 
-            // Use pattern mode only if it results in smaller output
-            if pattern_compressed.len() < direct_compressed.len() {
-                (pattern_compressed, true)
+                // Use pattern mode only if it results in smaller output
+                if pattern_compressed.len() < direct_compressed.len() {
+                    (pattern_compressed, true)
+                } else {
+                    (direct_compressed, false)
+                }
             } else {
-                (direct_compressed, false)
-            }
-        } else {
-            // Direct compression
-            (self.compress_lzma(text_bytes)?, false)
-        };
+                // Direct compression
+                (self.compress_lzma(text_bytes)?, false)
+            };
 
         // Update header with sizes and mode flag
         let mut header = encoded.header.clone();
@@ -328,8 +327,9 @@ impl ExceptionEncoder {
     /// Compress data with LZMA
     fn compress_lzma(&self, data: &[u8]) -> Result<Vec<u8>> {
         let mut compressed = Vec::new();
-        lzma_compress(&mut std::io::Cursor::new(data), &mut compressed)
-            .map_err(|e| ALICETextError::EncodingError(format!("LZMA compression failed: {}", e)))?;
+        lzma_compress(&mut std::io::Cursor::new(data), &mut compressed).map_err(|e| {
+            ALICETextError::EncodingError(format!("LZMA compression failed: {}", e))
+        })?;
         Ok(compressed)
     }
 }
@@ -396,5 +396,70 @@ mod tests {
 
         assert!(encoded.pattern_db.is_none());
         assert_eq!(encoded.processed_text, text);
+    }
+
+    #[test]
+    fn test_header_roundtrip_all_modes() {
+        for (mode, expected_byte) in [(EncodingMode::Pattern, 0u8), (EncodingMode::NGram, 1u8)] {
+            let mut header = ExceptionHeader::new(mode);
+            header.original_length = u32::MAX;
+            header.token_count = 12345;
+            header.exception_count = 999;
+            header.pattern_db_length = 42;
+            header.compressed_length = 67890;
+
+            let bytes = header.to_bytes();
+            assert_eq!(bytes[0], expected_byte);
+            let restored = ExceptionHeader::from_bytes(&bytes).unwrap();
+            assert_eq!(restored.mode, mode);
+            assert_eq!(restored.original_length, u32::MAX);
+            assert_eq!(restored.token_count, 12345);
+            assert_eq!(restored.exception_count, 999);
+            assert_eq!(restored.compressed_length, 67890);
+        }
+    }
+
+    #[test]
+    fn test_header_from_bytes_too_short() {
+        let result = ExceptionHeader::from_bytes(&[0u8; 10]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_header_from_bytes_invalid_mode() {
+        let mut bytes = [0u8; ExceptionHeader::SIZE];
+        bytes[0] = 255; // Invalid mode
+        let result = ExceptionHeader::from_bytes(&bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encode_empty_text() {
+        let encoder = ExceptionEncoder::new(EncodingMode::Pattern);
+        let encoded = encoder.encode("").unwrap();
+        assert_eq!(encoded.header.original_length, 0);
+        assert_eq!(encoded.token_count, 0);
+    }
+
+    #[test]
+    fn test_encode_to_bytes_contains_magic_and_version() {
+        let encoder = ExceptionEncoder::new(EncodingMode::NGram);
+        let bytes = encoder.encode_to_bytes("test data").unwrap();
+        assert_eq!(&bytes[0..8], ALICE_TEXT_MAGIC);
+        assert_eq!(bytes[8], ALICE_TEXT_VERSION.0);
+        assert_eq!(bytes[9], ALICE_TEXT_VERSION.1);
+    }
+
+    #[test]
+    fn test_default_encoding_mode() {
+        let mode = EncodingMode::default();
+        assert_eq!(mode, EncodingMode::Pattern);
+    }
+
+    #[test]
+    fn test_default_exception_encoder() {
+        let encoder = ExceptionEncoder::default();
+        let encoded = encoder.encode("test").unwrap();
+        assert_eq!(encoded.header.mode, EncodingMode::Pattern);
     }
 }

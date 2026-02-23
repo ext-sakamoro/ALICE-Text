@@ -35,8 +35,6 @@ impl CompressionMode {
     }
 }
 
-
-
 /// Header for tuned compressed data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TunedHeader {
@@ -148,11 +146,9 @@ impl TunedCompressor {
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {}", e)))?;
 
         // Step 3: Compress with Zstd
-        let compressed = zstd::stream::encode_all(
-            std::io::Cursor::new(&serialized),
-            self.mode.zstd_level(),
-        )
-        .map_err(|e| ALICETextError::EncodingError(format!("Zstd error: {}", e)))?;
+        let compressed =
+            zstd::stream::encode_all(std::io::Cursor::new(&serialized), self.mode.zstd_level())
+                .map_err(|e| ALICETextError::EncodingError(format!("Zstd error: {}", e)))?;
 
         // Step 4: Build final output
         // Format: MAGIC (8) + VERSION (2) + HEADER (24) + COMPRESSED_DATA
@@ -346,8 +342,16 @@ mod tests {
         let stats = compressor.last_stats().unwrap();
 
         // Should achieve good compression for repetitive data
-        assert!(stats.compression_ratio < 0.5, "Ratio: {}", stats.compression_ratio);
-        assert!(stats.space_savings > 0.5, "Savings: {}", stats.space_savings);
+        assert!(
+            stats.compression_ratio < 0.5,
+            "Ratio: {}",
+            stats.compression_ratio
+        );
+        assert!(
+            stats.space_savings > 0.5,
+            "Savings: {}",
+            stats.space_savings
+        );
     }
 
     #[test]
@@ -444,5 +448,108 @@ mod tests {
             compress_time,
             decompress_time
         );
+    }
+
+    #[test]
+    fn test_tuned_header_roundtrip() {
+        let header = TunedHeader {
+            original_length: 123456789,
+            mode: CompressionMode::Best,
+            pattern_count: 42,
+            skeleton_length: 999,
+        };
+        let bytes = header.to_bytes();
+        let restored = TunedHeader::from_bytes(&bytes).unwrap();
+        assert_eq!(restored.original_length, 123456789);
+        assert_eq!(restored.pattern_count, 42);
+        assert_eq!(restored.skeleton_length, 999);
+    }
+
+    #[test]
+    fn test_tuned_header_from_bytes_too_short() {
+        let result = TunedHeader::from_bytes(&[0u8; 5]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compression_mode_zstd_levels() {
+        // Verify the Zstd levels are reasonable
+        assert!(CompressionMode::Fast.zstd_level() < CompressionMode::Balanced.zstd_level());
+        assert!(CompressionMode::Balanced.zstd_level() < CompressionMode::Best.zstd_level());
+    }
+
+    #[test]
+    fn test_set_mode() {
+        let mut compressor = TunedCompressor::default();
+        assert_eq!(compressor.mode(), CompressionMode::Balanced);
+        compressor.set_mode(CompressionMode::Fast);
+        assert_eq!(compressor.mode(), CompressionMode::Fast);
+        compressor.set_mode(CompressionMode::Best);
+        assert_eq!(compressor.mode(), CompressionMode::Best);
+    }
+
+    #[test]
+    fn test_decompress_invalid_magic() {
+        let compressor = TunedCompressor::default();
+        let mut data = vec![0u8; 50];
+        data[0..8].copy_from_slice(b"BADMAGIC");
+        data[8] = 2;
+        let result = compressor.decompress(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decompress_legacy_version() {
+        let compressor = TunedCompressor::default();
+        let mut data = vec![0u8; 50];
+        data[0..8].copy_from_slice(crate::ALICE_TEXT_MAGIC);
+        data[8] = 1; // Legacy version
+        let result = compressor.decompress(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decompress_too_short() {
+        let compressor = TunedCompressor::default();
+        let result = compressor.decompress(&[0u8; 5]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_convenience_functions() {
+        let text = "2024-01-15 INFO roundtrip convenience test";
+        let compressed = compress_tuned(text, CompressionMode::Fast).unwrap();
+        let decompressed = decompress_tuned(&compressed).unwrap();
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_unicode_roundtrip() {
+        let mut compressor = TunedCompressor::default();
+        let text = "日本語テスト: 2024-01-15 INFO ユーザーがログインしました";
+        let compressed = compressor.compress(text).unwrap();
+        let decompressed = compressor.decompress(&compressed).unwrap();
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_special_characters_roundtrip() {
+        let mut compressor = TunedCompressor::default();
+        let text = "Special chars: @#$%^&*()[]|\\<>~`\t\n\r";
+        let compressed = compressor.compress(text).unwrap();
+        let decompressed = compressor.decompress(&compressed).unwrap();
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_stats_updated_after_compress() {
+        let mut compressor = TunedCompressor::default();
+        assert!(compressor.last_stats().is_none());
+        let text = "Test message";
+        let _compressed = compressor.compress(text).unwrap();
+        let stats = compressor.last_stats().unwrap();
+        assert_eq!(stats.original_size, text.len());
+        assert!(stats.compressed_size > 0);
+        assert!(stats.compression_ratio > 0.0);
     }
 }

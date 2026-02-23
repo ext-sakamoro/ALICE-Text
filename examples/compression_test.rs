@@ -1,6 +1,6 @@
 //! Compression test example
 
-use alice_text::{ALICEText, EncodingMode, TunedCompressor, CompressionMode};
+use alice_text::{ALICEText, CompressionMode, EncodingMode, TunedCompressor};
 
 fn generate_log_data(lines: usize) -> String {
     (0..lines)
@@ -23,11 +23,7 @@ fn main() {
     println!("=== ALICE-Text Compression Comparison ===\n");
 
     // Test different data sizes
-    let sizes = [
-        ("1KB", 15),
-        ("10KB", 150),
-        ("100KB", 1500),
-    ];
+    let sizes = [("1KB", 15), ("10KB", 150), ("100KB", 1500)];
 
     println!("--- Original ALICEText (LZMA) ---\n");
 
@@ -101,9 +97,18 @@ fn main() {
     let estimate = alice.estimate_compression(&data);
 
     println!("=== Entropy Estimation (10KB) ===");
-    println!("  Shannon Entropy: {:.2} bits/byte", estimate.shannon_entropy);
-    println!("  Pattern Coverage: {:.1}%", estimate.pattern_coverage * 100.0);
+    println!(
+        "  Shannon Entropy: {:.2} bits/byte",
+        estimate.shannon_entropy
+    );
+    println!(
+        "  Pattern Coverage: {:.1}%",
+        estimate.pattern_coverage * 100.0
+    );
     println!("  Repetition Score: {:.2}", estimate.repetition_score);
-    println!("  Estimated Ratio: {:.1}%", estimate.estimated_ratio * 100.0);
+    println!(
+        "  Estimated Ratio: {:.1}%",
+        estimate.estimated_ratio * 100.0
+    );
     println!("  Quality: {}", estimate.quality());
 }

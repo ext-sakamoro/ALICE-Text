@@ -3,13 +3,12 @@
 //! Command-line interface for ALICE-Text compression.
 
 use alice_text::{
-    ALICEText, EntropyEstimator, TunedCompressor, CompressionMode,
-    FormatV3Metadata, QueryEngine, Op,
-    CompressionLevel, compress_v3,
+    compress_v3, ALICEText, CompressionLevel, CompressionMode, EntropyEstimator, FormatV3Metadata,
+    Op, QueryEngine, TunedCompressor,
 };
 use clap::{Parser, Subcommand};
 use std::fs;
-use std::io::{self, Read, Write, Cursor};
+use std::io::{self, Cursor, Read, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -380,13 +379,26 @@ fn estimate_compression(input: &PathBuf, detailed: bool) -> Result<(), Box<dyn s
     println!("Estimated Ratio:  {:.1}%", estimate.estimated_ratio * 100.0);
     println!("Space Savings:    {:.1}%", estimate.space_savings * 100.0);
     println!("Quality:          {}", estimate.quality());
-    println!("Compressible:     {}", if estimate.is_compressible() { "Yes" } else { "No" });
+    println!(
+        "Compressible:     {}",
+        if estimate.is_compressible() {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
 
     if detailed {
         println!();
         println!("Detailed Analysis:");
-        println!("  Shannon Entropy:   {:.2} bits/byte", estimate.shannon_entropy);
-        println!("  Pattern Coverage:  {:.1}%", estimate.pattern_coverage * 100.0);
+        println!(
+            "  Shannon Entropy:   {:.2} bits/byte",
+            estimate.shannon_entropy
+        );
+        println!(
+            "  Pattern Coverage:  {:.1}%",
+            estimate.pattern_coverage * 100.0
+        );
         println!("  Repetition Score:  {:.2}", estimate.repetition_score);
         println!("  Unique Bytes:      {}", estimate.unique_bytes);
     }
@@ -477,8 +489,12 @@ fn compress_file_v3(
         println!("Columns ({}):", metadata.columns.len());
         for col in &metadata.columns {
             if col.row_count > 0 {
-                println!("  {:15} {:5} rows, {:6} bytes compressed",
-                    col.col_type.name(), col.row_count, col.compressed_size);
+                println!(
+                    "  {:15} {:5} rows, {:6} bytes compressed",
+                    col.col_type.name(),
+                    col.row_count,
+                    col.compressed_size
+                );
             }
         }
     } else {
@@ -545,8 +561,10 @@ fn query_file(
         println!();
         println!("Columns:");
         for col in &stats.columns {
-            println!("  {:15} {:5} rows, {:6} bytes",
-                col.name, col.row_count, col.compressed_size);
+            println!(
+                "  {:15} {:5} rows, {:6} bytes",
+                col.name, col.row_count, col.compressed_size
+            );
         }
         return Ok(());
     }
@@ -583,7 +601,8 @@ fn query_file(
         "csv" => {
             println!("{}", result.columns.join(","));
             for row in rows {
-                let values: Vec<&str> = result.columns
+                let values: Vec<&str> = result
+                    .columns
                     .iter()
                     .map(|c| row.values.get(c).map(|s| s.as_str()).unwrap_or(""))
                     .collect();
@@ -593,11 +612,10 @@ fn query_file(
         "json" => {
             println!("[");
             for (i, row) in rows.iter().enumerate() {
-                let pairs: Vec<String> = result.columns
+                let pairs: Vec<String> = result
+                    .columns
                     .iter()
-                    .filter_map(|c| {
-                        row.values.get(c).map(|v| format!("\"{}\":\"{}\"", c, v))
-                    })
+                    .filter_map(|c| row.values.get(c).map(|v| format!("\"{}\":\"{}\"", c, v)))
                     .collect();
                 let comma = if i < rows.len() - 1 { "," } else { "" };
                 println!("  {{{}}}{}", pairs.join(","), comma);
@@ -609,7 +627,8 @@ fn query_file(
             println!("{}", result.columns.join("\t"));
             println!("{}", "-".repeat(result.columns.len() * 20));
             for row in rows {
-                let values: Vec<&str> = result.columns
+                let values: Vec<&str> = result
+                    .columns
                     .iter()
                     .map(|c| row.values.get(c).map(|s| s.as_str()).unwrap_or(""))
                     .collect();
@@ -623,7 +642,8 @@ fn query_file(
     Ok(())
 }
 
-type FilterResult<'a> = Result<(Option<&'a str>, Option<Op>, Option<&'a str>), Box<dyn std::error::Error>>;
+type FilterResult<'a> =
+    Result<(Option<&'a str>, Option<Op>, Option<&'a str>), Box<dyn std::error::Error>>;
 
 fn parse_filter(filter: &str) -> FilterResult<'_> {
     // Parse: column=value, column!=value, column>=value, column<=value, column>value, column<value, column~value
@@ -643,6 +663,10 @@ fn parse_filter(filter: &str) -> FilterResult<'_> {
     } else if let Some((col, val)) = filter.split_once("=") {
         Ok((Some(col.trim()), Some(Op::Eq), Some(val.trim())))
     } else {
-        Err(format!("Invalid filter format: {}. Use column=value, column>=value, etc.", filter).into())
+        Err(format!(
+            "Invalid filter format: {}. Use column=value, column>=value, etc.",
+            filter
+        )
+        .into())
     }
 }

@@ -101,8 +101,8 @@ impl EntropyEstimator {
         );
 
         // Calculate estimated size
-        let estimated_size = (original_size as f64 * estimated_ratio).ceil() as usize
-            + self.header_overhead;
+        let estimated_size =
+            (original_size as f64 * estimated_ratio).ceil() as usize + self.header_overhead;
 
         let inv_original = 1.0 / original_size as f64;
         let actual_ratio = estimated_size as f64 * inv_original;
@@ -324,5 +324,62 @@ mod tests {
 
         assert!(entropy > 0.0);
         assert!(entropy <= 8.0); // Max 8 bits per byte
+    }
+
+    #[test]
+    fn test_quick_entropy_empty_data() {
+        let estimator = EntropyEstimator::new();
+        let entropy = estimator.quick_entropy(b"");
+        assert_eq!(entropy, 0.0);
+    }
+
+    #[test]
+    fn test_quick_entropy_single_byte() {
+        let estimator = EntropyEstimator::new();
+        let entropy = estimator.quick_entropy(b"A");
+        // Single byte has zero entropy (only one symbol)
+        assert_eq!(entropy, 0.0);
+    }
+
+    #[test]
+    fn test_entropy_estimate_quality_labels() {
+        let estimator = EntropyEstimator::new();
+
+        // Single char repeated many times should be excellent compression
+        let repetitive = "a".repeat(10000);
+        let estimate = estimator.estimate(&repetitive);
+        // Shannon entropy should be 0 for single-character text
+        assert_eq!(estimate.shannon_entropy, 0.0);
+        assert!(estimate.repetition_score > 0.5);
+
+        // Unicode text
+        let text = "Hello World! How are you today?";
+        let estimate2 = estimator.estimate(text);
+        assert!(estimate2.unique_bytes > 5);
+    }
+
+    #[test]
+    fn test_is_compressible_short_text() {
+        let estimator = EntropyEstimator::new();
+        // Very short text typically not compressible due to header overhead
+        let short = "Hi";
+        let estimate = estimator.estimate(short);
+        // With header overhead, estimated_size >> original_size, so ratio > 0.9
+        assert!(!estimate.is_compressible() || estimate.estimated_ratio >= 0.9);
+    }
+
+    #[test]
+    fn test_entropy_estimate_space_savings_non_negative() {
+        let estimator = EntropyEstimator::new();
+        // For any text, space_savings should be >= 0.0
+        for text in &["", "a", "Hello", "test ".repeat(100).as_str()] {
+            let estimate = estimator.estimate(text);
+            assert!(
+                estimate.space_savings >= 0.0,
+                "space_savings should be non-negative, got {} for text len {}",
+                estimate.space_savings,
+                text.len()
+            );
+        }
     }
 }

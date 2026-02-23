@@ -4,7 +4,6 @@ version = "1.0.0"
 edition = "2021"
 authors = ["Moroya Sakamoto"]
 description = "Exception-based text compression - Send only surprises, not predictions"
-license = "LicenseRef-Proprietary"
 license-file = "LICENSE"
 publish = false
 repository = "https://github.com/ext-sakamoro/ALICE-Text"
@@ -61,6 +60,9 @@ alice-voice = { path = "../ALICE-Voice", optional = true, default-features = fal
 # --- Search bridge ---
 alice-search = { path = "../ALICE-Search", optional = true, default-features = false }
 
+# --- Font bridge ---
+alice-font = { path = "../ALICE-Font", optional = true, default-features = false, features = ["std"] }
+
 [[bin]]
 name = "alice-text"
 path = "src/bin/alice_text.rs"
@@ -75,6 +77,7 @@ python = ["pyo3"]
 ml = ["dep:alice-ml"]  # ALICE-ML ternary inference for text prediction
 voice = ["dep:alice-voice"]  # ALICE-Voice bridge for speech encoding hints
 search = ["dep:alice-search"]  # ALICE-Search full-text index for compressed text
+font = ["dep:alice-font"]  # ALICE-Font parametric rendering pipeline
 
 [[bench]]
 name = "compression_benchmark"

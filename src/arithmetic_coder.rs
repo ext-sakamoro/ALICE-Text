@@ -496,4 +496,94 @@ mod tests {
 
         assert_eq!(data, decoded);
     }
+
+    #[test]
+    fn test_frequency_model_empty() {
+        let model = FrequencyModel::new();
+        assert!(model.is_empty());
+        assert_eq!(model.total(), 0);
+        assert!(model.get_range(b'a').is_none());
+        assert!(model.get_symbol(0).is_none());
+    }
+
+    #[test]
+    fn test_frequency_model_single_symbol() {
+        let mut model = FrequencyModel::new();
+        model.add_symbol(b'z');
+        model.build_cumulative();
+        assert_eq!(model.total(), 1);
+        assert!(!model.is_empty());
+        let (low, high, total) = model.get_range(b'z').unwrap();
+        assert_eq!(low, 0);
+        assert_eq!(high, 1);
+        assert_eq!(total, 1);
+        assert_eq!(model.get_symbol(0), Some(b'z'));
+    }
+
+    #[test]
+    fn test_frequency_model_deterministic_ordering() {
+        let data = b"dcba";
+        let model = FrequencyModel::from_data(data);
+        // Cumulative should be sorted by symbol value (a < b < c < d)
+        let (a_low, a_high, _) = model.get_range(b'a').unwrap();
+        let (b_low, b_high, _) = model.get_range(b'b').unwrap();
+        let (c_low, c_high, _) = model.get_range(b'c').unwrap();
+        let (d_low, _, _) = model.get_range(b'd').unwrap();
+        assert_eq!(a_low, 0);
+        assert_eq!(a_high, b_low);
+        assert_eq!(b_high, c_low);
+        assert_eq!(c_high, d_low);
+    }
+
+    #[test]
+    fn test_roundtrip_two_distinct_symbols() {
+        let data = b"ababab";
+        let model = FrequencyModel::from_data(data);
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(data, &model);
+        let encoded = encoder.finish();
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+        assert_eq!(data.to_vec(), decoded);
+    }
+
+    #[test]
+    fn test_encoded_size_tracks_output() {
+        let data = b"hello world test data";
+        let model = FrequencyModel::from_data(data);
+        let mut encoder = ArithmeticEncoder::new();
+        let initial_size = encoder.encoded_size();
+        assert_eq!(initial_size, 0);
+        encoder.encode(data, &model);
+        // After encoding, some bytes may have been output
+        let encoded = encoder.finish();
+        assert!(encoded.len() > 0);
+    }
+
+    #[test]
+    fn test_decode_with_empty_model_returns_none() {
+        let model = FrequencyModel::new();
+        let mut decoder = ArithmeticDecoder::new(vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        let result = decoder.decode_symbol(&model);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_roundtrip_long_repetitive_sequence() {
+        // 1000 bytes of the same character
+        let data = vec![b'X'; 1000];
+        let model = FrequencyModel::from_data(&data);
+        let mut encoder = ArithmeticEncoder::new();
+        encoder.encode(&data, &model);
+        let encoded = encoder.finish();
+        // Should compress very well for single-symbol data
+        assert!(
+            encoded.len() < 10,
+            "Single symbol 1000x should compress to very few bytes, got {}",
+            encoded.len()
+        );
+        let mut decoder = ArithmeticDecoder::new(encoded);
+        let decoded = decoder.decode(&model, data.len());
+        assert_eq!(data, decoded);
+    }
 }

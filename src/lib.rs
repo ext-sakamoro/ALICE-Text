@@ -51,34 +51,48 @@ pub mod exception_encoder;
 pub mod pattern_learner;
 
 // Tuned (optimized) modules
-pub mod tuned_pattern_learner;
 pub mod columnar_encoder;
 pub mod tuned_compressor;
+pub mod tuned_pattern_learner;
 
 // Format v3 and Query Engine
 pub mod format_v3;
 pub mod query_engine;
 
+// Game dialogue compression and localization
+pub mod dialogue;
+
 pub use arithmetic_coder::{ArithmeticDecoder, ArithmeticEncoder};
 pub use entropy_estimator::{EntropyEstimate, EntropyEstimator};
 pub use exception_decoder::ExceptionDecoder;
 pub use exception_encoder::{EncodedText, EncodingMode, ExceptionEncoder, ExceptionHeader};
-pub use pattern_learner::{LearnedPattern, PatternDatabase, PatternLearner, PatternMatch, PatternType};
+pub use pattern_learner::{
+    LearnedPattern, PatternDatabase, PatternLearner, PatternMatch, PatternType,
+};
 
 // Tuned (optimized) exports
-pub use tuned_pattern_learner::{TunedPatternLearner, TunedMatch, OwnedMatch, PatternType as TunedPatternType};
 pub use columnar_encoder::{ColumnarEncoder, ColumnarPayload, LogLevel, TimestampColumn};
-pub use tuned_compressor::{TunedCompressor, TunedHeader, TunedStats, CompressionMode, compress_tuned, decompress_tuned, TUNED_VERSION};
+pub use tuned_compressor::{
+    compress_tuned, decompress_tuned, CompressionMode, TunedCompressor, TunedHeader, TunedStats,
+    TUNED_VERSION,
+};
+pub use tuned_pattern_learner::{
+    OwnedMatch, PatternType as TunedPatternType, TunedMatch, TunedPatternLearner,
+};
 
 // Format v3 and Query Engine exports
 pub use format_v3::{
-    FormatV3Writer, FormatV3Header, FormatV3Metadata, ColumnType, ColumnEntry,
-    CompressionLevel, PartialPayload, FORMAT_V3_VERSION,
+    ColumnEntry, ColumnType, CompressionLevel, FormatV3Header, FormatV3Metadata, FormatV3Writer,
+    PartialPayload, FORMAT_V3_VERSION,
 };
 pub use query_engine::{
-    QueryEngine, QueryBuilder, QueryResult, QueryRow, Op, FileStats, ColumnStats,
-    QuerySource, MmapSource, BufferSource,
-    compress_v3, decompress_v3,
+    compress_v3, decompress_v3, BufferSource, ColumnStats, FileStats, MmapSource, Op, QueryBuilder,
+    QueryEngine, QueryResult, QueryRow, QuerySource,
+};
+
+pub use dialogue::{
+    DeltaTable, DialogueCompressionMode, DialogueCompressor, DialogueEntry, DialogueTable,
+    LocaleId, LocalizationTable, RubyAnnotation, SpeakerDictionary,
 };
 
 use std::io::{Read, Write};
@@ -167,8 +181,6 @@ impl ALICEText {
         }
     }
 
-
-
     /// Compress text to bytes (uses TunedCompressor v2)
     pub fn compress(&mut self, text: &str) -> Result<Vec<u8>> {
         let compressed = self.tuned.compress(text)?;
@@ -200,7 +212,11 @@ impl ALICEText {
     }
 
     /// Compress text and write to writer
-    pub fn compress_to<W: Write>(&mut self, text: &str, writer: &mut W) -> Result<CompressionStats> {
+    pub fn compress_to<W: Write>(
+        &mut self,
+        text: &str,
+        writer: &mut W,
+    ) -> Result<CompressionStats> {
         let compressed = self.compress(text)?;
         writer.write_all(&compressed)?;
         Ok(self.last_stats.clone().unwrap())
@@ -243,6 +259,9 @@ pub fn decompress(data: &[u8]) -> Result<String> {
     alice.decompress(data)
 }
 
+#[cfg(feature = "font")]
+pub mod font_bridge;
+
 #[cfg(feature = "ml")]
 pub mod ml_bridge;
 
@@ -281,17 +300,15 @@ mod python_bindings {
         fn compress(&mut self, py: Python<'_>, text: &str) -> PyResult<Vec<u8>> {
             let text_owned = text.to_owned();
             let inner = &mut self.inner;
-            py.allow_threads(|| {
-                inner.compress(&text_owned)
-            }).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            py.allow_threads(|| inner.compress(&text_owned))
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         }
 
         fn decompress(&self, py: Python<'_>, data: &[u8]) -> PyResult<String> {
             let data_owned = data.to_vec();
             let inner = &self.inner;
-            py.allow_threads(|| {
-                inner.decompress(&data_owned)
-            }).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            py.allow_threads(|| inner.decompress(&data_owned))
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         }
     }
 
@@ -301,7 +318,6 @@ mod python_bindings {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -362,5 +378,86 @@ mod tests {
         let decompressed = alice.decompress(&compressed).unwrap();
 
         assert_eq!("", decompressed);
+    }
+
+    #[test]
+    fn test_default_constructor() {
+        let alice = ALICEText::default();
+        assert!(alice.last_stats().is_none());
+    }
+
+    #[test]
+    fn test_convenience_compress_decompress() {
+        let text = "2024-01-15 INFO Convenience function test";
+        let compressed = compress(text, EncodingMode::Pattern).unwrap();
+        let decompressed = decompress(&compressed).unwrap();
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_compress_to_writer() {
+        let mut alice = ALICEText::new(EncodingMode::Pattern);
+        let text = "Test writing to a buffer";
+        let mut buffer = Vec::new();
+        let stats = alice.compress_to(text, &mut buffer).unwrap();
+        assert!(stats.original_size > 0);
+        assert!(!buffer.is_empty());
+
+        // Verify we can decompress from the buffer
+        let decompressed = alice.decompress(&buffer).unwrap();
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_decompress_from_reader() {
+        let mut alice = ALICEText::new(EncodingMode::Pattern);
+        let text = "Test reading from a reader";
+        let compressed = alice.compress(text).unwrap();
+        let mut reader = std::io::Cursor::new(&compressed);
+        let decompressed = alice.decompress_from(&mut reader).unwrap();
+        assert_eq!(text, decompressed);
+    }
+
+    #[test]
+    fn test_estimate_compression() {
+        let alice = ALICEText::default();
+        let text = "2024-01-15 INFO test\n".repeat(50);
+        let estimate = alice.estimate_compression(&text);
+        assert!(estimate.original_size > 0);
+        assert!(estimate.shannon_entropy > 0.0);
+    }
+
+    #[test]
+    fn test_compression_stats_methods() {
+        let stats = CompressionStats {
+            original_size: 1000,
+            compressed_size: 500,
+            token_count: 100,
+            exception_count: 20,
+            pattern_count: 10,
+        };
+        assert!((stats.compression_ratio() - 0.5).abs() < 0.001);
+        assert!((stats.exception_rate() - 0.2).abs() < 0.001);
+        assert!((stats.space_savings() - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compression_stats_zero_size() {
+        let stats = CompressionStats {
+            original_size: 0,
+            compressed_size: 0,
+            token_count: 0,
+            exception_count: 0,
+            pattern_count: 0,
+        };
+        assert_eq!(stats.compression_ratio(), 0.0);
+        assert_eq!(stats.exception_rate(), 0.0);
+    }
+
+    #[test]
+    fn test_magic_and_version_constants() {
+        assert_eq!(ALICE_TEXT_MAGIC, b"ALICETXT");
+        assert_eq!(ALICE_TEXT_VERSION, (1, 0));
+        assert_eq!(ALICE_TEXT_FINGERPRINT, "ALICE-TXT-v1.0");
     }
 }
