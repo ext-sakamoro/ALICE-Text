@@ -166,7 +166,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             format,
             limit,
         } => {
-            query_file(&input, columns, stats, select, filter, &format, limit)?;
+            query_file(
+                &input,
+                columns,
+                stats,
+                select.as_ref(),
+                filter.as_ref(),
+                &format,
+                limit,
+            )?;
         }
         Commands::CompressV3 {
             input,
@@ -204,7 +212,7 @@ fn compress_file(
         "balanced" => CompressionMode::Balanced,
         "best" => CompressionMode::Best,
         _ => {
-            eprintln!("Unknown level: {}. Using balanced.", level);
+            eprintln!("Unknown level: {level}. Using balanced.");
             CompressionMode::Balanced
         }
     };
@@ -227,6 +235,7 @@ fn compress_file(
     fs::write(&output_path, &compressed)?;
 
     // Report
+    #[allow(clippy::cast_precision_loss)]
     let ratio = compressed_size as f64 / original_size as f64 * 100.0;
     let savings = 100.0 - ratio;
 
@@ -235,12 +244,12 @@ fn compress_file(
         println!("===========================");
         println!("Input:      {}", input.display());
         println!("Output:     {}", output_path.display());
-        println!("Level:      {:?}", compression_mode);
+        println!("Level:      {compression_mode:?}");
         println!();
-        println!("Original:   {} bytes", original_size);
-        println!("Compressed: {} bytes", compressed_size);
-        println!("Ratio:      {:.1}%", ratio);
-        println!("Savings:    {:.1}%", savings);
+        println!("Original:   {original_size} bytes");
+        println!("Compressed: {compressed_size} bytes");
+        println!("Ratio:      {ratio:.1}%");
+        println!("Savings:    {savings:.1}%");
         println!("Time:       {:.2}ms", elapsed.as_secs_f64() * 1000.0);
 
         if let Some(stats) = compressor.last_stats() {
@@ -320,19 +329,20 @@ fn show_info(input: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         let skeleton_length = u32::from_le_bytes(compressed[26..30].try_into().unwrap_or([0u8; 4]));
 
         println!("Format:          Tuned (Zstd + Columnar)");
-        println!("Compression:     {}", mode);
-        println!("Original Size:   {} bytes", original_length);
-        println!("Pattern Count:   {}", pattern_count);
-        println!("Skeleton Tokens: {}", skeleton_length);
+        println!("Compression:     {mode}");
+        println!("Original Size:   {original_length} bytes");
+        println!("Pattern Count:   {pattern_count}");
+        println!("Skeleton Tokens: {skeleton_length}");
 
+        #[allow(clippy::cast_precision_loss)]
         let ratio = compressed.len() as f64 / original_length as f64 * 100.0;
-        println!("Ratio:           {:.1}%", ratio);
+        println!("Ratio:           {ratio:.1}%");
 
         // Verify decompression
         let compressor = TunedCompressor::default();
         match compressor.decompress(&compressed) {
             Ok(_) => println!("Status:          Valid (decompression OK)"),
-            Err(e) => println!("Status:          Invalid ({})", e),
+            Err(e) => println!("Status:          Invalid ({e})"),
         }
     } else {
         // v1 format (legacy)
@@ -346,19 +356,20 @@ fn show_info(input: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         let exception_count = u32::from_le_bytes(compressed[22..26].try_into().unwrap_or([0u8; 4]));
 
         println!("Format:          Legacy (LZMA)");
-        println!("Mode:            {}", mode);
-        println!("Original Size:   {} bytes", original_length);
-        println!("Token Count:     {}", token_count);
-        println!("Exception Count: {}", exception_count);
+        println!("Mode:            {mode}");
+        println!("Original Size:   {original_length} bytes");
+        println!("Token Count:     {token_count}");
+        println!("Exception Count: {exception_count}");
 
-        let ratio = compressed.len() as f64 / original_length as f64 * 100.0;
-        println!("Ratio:           {:.1}%", ratio);
+        #[allow(clippy::cast_precision_loss)]
+        let ratio = compressed.len() as f64 / f64::from(original_length) * 100.0;
+        println!("Ratio:           {ratio:.1}%");
 
         // Verify decompression
         let alice = ALICEText::default();
         match alice.decompress(&compressed) {
             Ok(_) => println!("Status:          Valid (decompression OK)"),
-            Err(e) => println!("Status:          Invalid ({})", e),
+            Err(e) => println!("Status:          Invalid ({e})"),
         }
     }
 
@@ -374,7 +385,7 @@ fn estimate_compression(input: &PathBuf, detailed: bool) -> Result<(), Box<dyn s
 
     println!("Compression Estimate for: {}", input.display());
     println!("==========================");
-    println!("Original Size:    {} bytes", original_size);
+    println!("Original Size:    {original_size} bytes");
     println!("Estimated Size:   {} bytes", estimate.estimated_size);
     println!("Estimated Ratio:  {:.1}%", estimate.estimated_ratio * 100.0);
     println!("Space Savings:    {:.1}%", estimate.space_savings * 100.0);
@@ -420,7 +431,7 @@ fn verify_file(input: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("FAILED");
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
             std::process::exit(1);
         }
     }
@@ -444,7 +455,7 @@ fn compress_file_v3(
         "balanced" => CompressionLevel::Balanced,
         "best" => CompressionLevel::Best,
         _ => {
-            eprintln!("Unknown level: {}. Using balanced.", level);
+            eprintln!("Unknown level: {level}. Using balanced.");
             CompressionLevel::Balanced
         }
     };
@@ -466,6 +477,7 @@ fn compress_file_v3(
     fs::write(&output_path, &compressed)?;
 
     // Report
+    #[allow(clippy::cast_precision_loss)]
     let ratio = compressed_size as f64 / original_size as f64 * 100.0;
     let savings = 100.0 - ratio;
 
@@ -478,12 +490,12 @@ fn compress_file_v3(
         println!("======================================");
         println!("Input:      {}", input.display());
         println!("Output:     {}", output_path.display());
-        println!("Level:      {:?}", compression_level);
+        println!("Level:      {compression_level:?}");
         println!();
-        println!("Original:   {} bytes", original_size);
-        println!("Compressed: {} bytes", compressed_size);
-        println!("Ratio:      {:.1}%", ratio);
-        println!("Savings:    {:.1}%", savings);
+        println!("Original:   {original_size} bytes");
+        println!("Compressed: {compressed_size} bytes");
+        println!("Ratio:      {ratio:.1}%");
+        println!("Savings:    {savings:.1}%");
         println!("Time:       {:.2}ms", elapsed.as_secs_f64() * 1000.0);
         println!();
         println!("Columns ({}):", metadata.columns.len());
@@ -514,8 +526,8 @@ fn query_file(
     input: &PathBuf,
     show_columns: bool,
     show_stats: bool,
-    select: Option<String>,
-    filter: Option<String>,
+    select: Option<&String>,
+    filter: Option<&String>,
     format: &str,
     limit: Option<usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -543,7 +555,7 @@ fn query_file(
     if show_columns {
         println!("Available columns:");
         for col in engine.columns() {
-            println!("  {}", col);
+            println!("  {col}");
         }
         return Ok(());
     }
@@ -570,13 +582,13 @@ fn query_file(
     }
 
     // Parse select columns
-    let select_cols: Vec<&str> = select
-        .as_ref()
-        .map(|s| s.split(',').map(|c| c.trim()).collect())
-        .unwrap_or_else(|| vec!["log_levels", "ipv4", "timestamps"]);
+    let select_cols: Vec<&str> = select.map_or_else(
+        || vec!["log_levels", "ipv4", "timestamps"],
+        |s| s.split(',').map(str::trim).collect(),
+    );
 
     // Parse filter
-    let (filter_col, filter_op, filter_val) = if let Some(ref f) = filter {
+    let (filter_col, filter_op, filter_val) = if let Some(f) = filter {
         parse_filter(f)?
     } else {
         (None, None, None)
@@ -604,7 +616,7 @@ fn query_file(
                 let values: Vec<&str> = result
                     .columns
                     .iter()
-                    .map(|c| row.values.get(c).map(|s| s.as_str()).unwrap_or(""))
+                    .map(|c| row.values.get(c).map_or("", std::string::String::as_str))
                     .collect();
                 println!("{}", values.join(","));
             }
@@ -615,7 +627,7 @@ fn query_file(
                 let pairs: Vec<String> = result
                     .columns
                     .iter()
-                    .filter_map(|c| row.values.get(c).map(|v| format!("\"{}\":\"{}\"", c, v)))
+                    .filter_map(|c| row.values.get(c).map(|v| format!("\"{c}\":\"{v}\"")))
                     .collect();
                 let comma = if i < rows.len() - 1 { "," } else { "" };
                 println!("  {{{}}}{}", pairs.join(","), comma);
@@ -630,7 +642,7 @@ fn query_file(
                 let values: Vec<&str> = result
                     .columns
                     .iter()
-                    .map(|c| row.values.get(c).map(|s| s.as_str()).unwrap_or(""))
+                    .map(|c| row.values.get(c).map_or("", std::string::String::as_str))
                     .collect();
                 println!("{}", values.join("\t"));
             }
@@ -654,19 +666,18 @@ fn parse_filter(filter: &str) -> FilterResult<'_> {
         Ok((Some(col.trim()), Some(Op::Ge), Some(val.trim())))
     } else if let Some((col, val)) = filter.split_once("<=") {
         Ok((Some(col.trim()), Some(Op::Le), Some(val.trim())))
-    } else if let Some((col, val)) = filter.split_once(">") {
+    } else if let Some((col, val)) = filter.split_once('>') {
         Ok((Some(col.trim()), Some(Op::Gt), Some(val.trim())))
-    } else if let Some((col, val)) = filter.split_once("<") {
+    } else if let Some((col, val)) = filter.split_once('<') {
         Ok((Some(col.trim()), Some(Op::Lt), Some(val.trim())))
-    } else if let Some((col, val)) = filter.split_once("~") {
+    } else if let Some((col, val)) = filter.split_once('~') {
         Ok((Some(col.trim()), Some(Op::Contains), Some(val.trim())))
-    } else if let Some((col, val)) = filter.split_once("=") {
+    } else if let Some((col, val)) = filter.split_once('=') {
         Ok((Some(col.trim()), Some(Op::Eq), Some(val.trim())))
     } else {
-        Err(format!(
-            "Invalid filter format: {}. Use column=value, column>=value, etc.",
-            filter
+        Err(
+            format!("Invalid filter format: {filter}. Use column=value, column>=value, etc.")
+                .into(),
         )
-        .into())
     }
 }

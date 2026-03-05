@@ -31,14 +31,14 @@ impl PatternType {
     /// Convert to u8 for compact storage
     #[inline]
     #[must_use]
-    pub fn as_u8(self) -> u8 {
+    pub const fn as_u8(self) -> u8 {
         self as u8
     }
 
     /// Convert from u8
     #[inline]
     #[must_use]
-    pub fn from_u8(v: u8) -> Self {
+    pub const fn from_u8(v: u8) -> Self {
         match v {
             0 => Self::Timestamp,
             1 => Self::Date,
@@ -341,7 +341,7 @@ mod tests {
         assert!(!skeleton.contains("192.168.1.100"));
 
         // Should be able to restore
-        let owned: Vec<OwnedMatch> = matches.into_iter().map(|m| m.into()).collect();
+        let owned: Vec<OwnedMatch> = matches.into_iter().map(std::convert::Into::into).collect();
         let restored = learner.restore_text(&skeleton, &owned);
         assert_eq!(text, restored);
     }
@@ -385,7 +385,7 @@ mod tests {
         let elapsed = start.elapsed();
 
         // Should complete quickly (< 100ms for 1000 lines)
-        assert!(elapsed.as_millis() < 100, "Took too long: {:?}", elapsed);
+        assert!(elapsed.as_millis() < 100, "Took too long: {elapsed:?}");
         assert!(!matches.is_empty());
     }
 
@@ -448,7 +448,9 @@ mod tests {
         let learner = TunedPatternLearner::new();
         let text = "IPv6: 2001:0db8:85a3:0000:0000:8a2e:0370:7334";
         let matches = learner.find_matches(text);
-        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
-        assert!(types.contains(&PatternType::IPv6));
+        assert!(matches
+            .iter()
+            .map(|m| m.pattern_type)
+            .any(|x| x == PatternType::IPv6));
     }
 }

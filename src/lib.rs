@@ -268,7 +268,7 @@ impl ALICEText {
 
     /// Get last compression statistics
     #[must_use]
-    pub fn last_stats(&self) -> Option<&CompressionStats> {
+    pub const fn last_stats(&self) -> Option<&CompressionStats> {
         self.last_stats.as_ref()
     }
 
@@ -370,6 +370,7 @@ mod python_bindings {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
 

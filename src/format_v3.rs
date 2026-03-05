@@ -61,7 +61,7 @@ pub enum ColumnType {
 
 impl ColumnType {
     #[must_use]
-    pub fn from_u8(v: u8) -> Option<Self> {
+    pub const fn from_u8(v: u8) -> Option<Self> {
         match v {
             0 => Some(Self::Skeleton),
             1 => Some(Self::Timestamps),
@@ -86,7 +86,7 @@ impl ColumnType {
     }
 
     #[must_use]
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Skeleton => "skeleton",
             Self::Timestamps => "timestamps",
@@ -286,7 +286,7 @@ pub enum CompressionLevel {
 }
 
 impl CompressionLevel {
-    fn zstd_level(self) -> i32 {
+    const fn zstd_level(self) -> i32 {
         match self {
             Self::Fast => 3,
             Self::Balanced => 10,
@@ -895,7 +895,7 @@ mod tests {
         let metadata = FormatV3Metadata::read_from(&mut cursor).unwrap();
 
         assert_eq!(metadata.header.original_length, text.len() as u64);
-        assert!(metadata.columns.len() > 0);
+        assert!(!metadata.columns.is_empty());
 
         // Check column names
         let names = metadata.column_names();
@@ -930,8 +930,7 @@ mod tests {
         for i in 0..=17u8 {
             assert!(
                 ColumnType::from_u8(i).is_some(),
-                "ColumnType::from_u8({}) should be Some",
-                i
+                "ColumnType::from_u8({i}) should be Some"
             );
         }
         assert!(ColumnType::from_u8(18).is_none());
@@ -944,8 +943,7 @@ mod tests {
             if let Some(ct) = ColumnType::from_u8(i) {
                 assert!(
                     !ct.name().is_empty(),
-                    "ColumnType {:?} name should not be empty",
-                    ct
+                    "ColumnType {ct:?} name should not be empty"
                 );
             }
         }
@@ -978,7 +976,7 @@ mod tests {
     #[test]
     fn test_format_v3_header_roundtrip() {
         let header = FormatV3Header {
-            original_length: 9999999,
+            original_length: 9_999_999,
             compression_level: 2,
             column_count: 15,
             row_count: 1000,
@@ -986,7 +984,7 @@ mod tests {
         };
         let bytes = header.to_bytes();
         let restored = FormatV3Header::from_bytes(&bytes).unwrap();
-        assert_eq!(restored.original_length, 9999999);
+        assert_eq!(restored.original_length, 9_999_999);
         assert_eq!(restored.compression_level, 2);
         assert_eq!(restored.column_count, 15);
         assert_eq!(restored.row_count, 1000);

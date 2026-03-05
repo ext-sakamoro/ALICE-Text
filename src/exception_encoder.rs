@@ -40,7 +40,7 @@ impl ExceptionHeader {
 
     /// Create a new header
     #[must_use]
-    pub fn new(mode: EncodingMode) -> Self {
+    pub const fn new(mode: EncodingMode) -> Self {
         Self {
             mode,
             original_length: 0,

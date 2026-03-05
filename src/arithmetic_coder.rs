@@ -97,13 +97,13 @@ impl FrequencyModel {
 
     /// Get total frequency
     #[must_use]
-    pub fn total(&self) -> u64 {
+    pub const fn total(&self) -> u64 {
         self.total
     }
 
     /// Check if model is empty
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.total == 0
     }
 }
@@ -133,7 +133,7 @@ pub struct ArithmeticEncoder {
 impl ArithmeticEncoder {
     /// Create a new encoder
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             low: 0,
             high: WHOLE - 1,
@@ -245,7 +245,7 @@ impl ArithmeticEncoder {
 
     /// Get current encoded size
     #[must_use]
-    pub fn encoded_size(&self) -> usize {
+    pub const fn encoded_size(&self) -> usize {
         self.output.len()
     }
 }
@@ -483,13 +483,8 @@ mod tests {
     #[test]
     fn test_compression_ratio() {
         // Data with skewed distribution should compress well
-        let mut data = Vec::new();
-        for _ in 0..100 {
-            data.push(b'a');
-        }
-        for _ in 0..10 {
-            data.push(b'b');
-        }
+        let mut data = vec![b'a'; 100];
+        data.extend(std::iter::repeat_n(b'b', 10));
         data.push(b'c');
 
         let model = FrequencyModel::from_data(&data);
@@ -567,7 +562,7 @@ mod tests {
         encoder.encode(data, &model);
         // After encoding, some bytes may have been output
         let encoded = encoder.finish();
-        assert!(encoded.len() > 0);
+        assert!(!encoded.is_empty());
     }
 
     #[test]

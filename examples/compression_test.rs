@@ -3,20 +3,22 @@
 use alice_text::{ALICEText, CompressionMode, EncodingMode, TunedCompressor};
 
 fn generate_log_data(lines: usize) -> String {
-    (0..lines)
-        .map(|i| {
-            format!(
-                "2024-01-{:02} {:02}:{:02}:{:02} {} User {} logged in from 192.168.1.{}\n",
-                (i % 28) + 1,
-                i % 24,
-                i % 60,
-                i % 60,
-                ["INFO", "WARN", "ERROR", "DEBUG"][i % 4],
-                i % 1000,
-                i % 256
-            )
-        })
-        .collect()
+    use std::fmt::Write;
+    (0..lines).fold(String::new(), |mut acc, i| {
+        writeln!(
+            acc,
+            "2024-01-{:02} {:02}:{:02}:{:02} {} User {} logged in from 192.168.1.{}",
+            (i % 28) + 1,
+            i % 24,
+            i % 60,
+            i % 60,
+            ["INFO", "WARN", "ERROR", "DEBUG"][i % 4],
+            i % 1000,
+            i % 256
+        )
+        .unwrap();
+        acc
+    })
 }
 
 fn main() {
@@ -45,16 +47,17 @@ fn main() {
 
         assert_eq!(data, decompressed);
 
+        #[allow(clippy::cast_precision_loss)]
         let ratio = compressed_size as f64 / original_size as f64 * 100.0;
         let savings = 100.0 - ratio;
 
-        println!("{} Log Data:", name);
-        println!("  Original:   {} bytes", original_size);
-        println!("  Compressed: {} bytes", compressed_size);
-        println!("  Ratio:      {:.1}%", ratio);
-        println!("  Savings:    {:.1}%", savings);
-        println!("  Compress:   {:?}", compress_time);
-        println!("  Decompress: {:?}", decompress_time);
+        println!("{name} Log Data:");
+        println!("  Original:   {original_size} bytes");
+        println!("  Compressed: {compressed_size} bytes");
+        println!("  Ratio:      {ratio:.1}%");
+        println!("  Savings:    {savings:.1}%");
+        println!("  Compress:   {compress_time:?}");
+        println!("  Decompress: {decompress_time:?}");
         println!();
     }
 
@@ -78,16 +81,17 @@ fn main() {
 
         assert_eq!(data, decompressed);
 
+        #[allow(clippy::cast_precision_loss)]
         let ratio = compressed_size as f64 / original_size as f64 * 100.0;
         let savings = 100.0 - ratio;
 
-        println!("{} Log Data:", name);
-        println!("  Original:   {} bytes", original_size);
-        println!("  Compressed: {} bytes", compressed_size);
-        println!("  Ratio:      {:.1}%", ratio);
-        println!("  Savings:    {:.1}%", savings);
-        println!("  Compress:   {:?}", compress_time);
-        println!("  Decompress: {:?}", decompress_time);
+        println!("{name} Log Data:");
+        println!("  Original:   {original_size} bytes");
+        println!("  Compressed: {compressed_size} bytes");
+        println!("  Ratio:      {ratio:.1}%");
+        println!("  Savings:    {savings:.1}%");
+        println!("  Compress:   {compress_time:?}");
+        println!("  Decompress: {decompress_time:?}");
         println!();
     }
 

@@ -53,7 +53,7 @@ impl LocaleId {
 // ── Ruby Annotation ────────────────────────────────────────────
 
 /// Ruby (furigana) annotation for CJK text
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RubyAnnotation {
     /// Start position in base text (character index, not byte)
     pub base_start: u16,
@@ -66,7 +66,7 @@ pub struct RubyAnnotation {
 // ── Dialogue Entry ─────────────────────────────────────────────
 
 /// Single dialogue entry
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DialogueEntry {
     /// Unique dialogue ID
     pub id: u32,
@@ -119,12 +119,12 @@ impl SpeakerDictionary {
 
     /// Number of unique speakers
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.names.len()
     }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.names.is_empty()
     }
 
@@ -196,18 +196,18 @@ impl DialogueTable {
 
     /// Number of entries
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.entries.len()
     }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
     /// Whether IDs are contiguous (O(1) lookup)
     #[must_use]
-    pub fn is_contiguous(&self) -> bool {
+    pub const fn is_contiguous(&self) -> bool {
         self.contiguous
     }
 
@@ -386,7 +386,7 @@ pub enum DialogueCompressionMode {
 }
 
 impl DialogueCompressionMode {
-    fn zstd_level(self) -> i32 {
+    const fn zstd_level(self) -> i32 {
         match self {
             Self::Fast => 1,
             Self::Balanced => 3,
@@ -402,7 +402,7 @@ pub struct DialogueCompressor {
 
 impl DialogueCompressor {
     #[must_use]
-    pub fn new(mode: DialogueCompressionMode) -> Self {
+    pub const fn new(mode: DialogueCompressionMode) -> Self {
         Self { mode }
     }
 
@@ -664,7 +664,7 @@ mod tests {
 
         let compressor = DialogueCompressor::default();
         let compressed = compressor.compress_table(&table).unwrap();
-        assert!(compressed.len() > 0);
+        assert!(!compressed.is_empty());
         assert_eq!(&compressed[0..8], DIALOGUE_MAGIC);
 
         let decompressed = compressor.decompress_table(&compressed).unwrap();

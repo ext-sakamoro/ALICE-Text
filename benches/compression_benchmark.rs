@@ -4,20 +4,22 @@ use alice_text::{ALICEText, EncodingMode};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 
 fn generate_log_data(lines: usize) -> String {
-    (0..lines)
-        .map(|i| {
-            format!(
-                "2024-01-{:02} {:02}:{:02}:{:02} {} User {} logged in from 192.168.1.{}\n",
-                (i % 28) + 1,
-                i % 24,
-                i % 60,
-                i % 60,
-                ["INFO", "WARN", "ERROR", "DEBUG"][i % 4],
-                i % 1000,
-                i % 256
-            )
-        })
-        .collect()
+    use std::fmt::Write;
+    (0..lines).fold(String::new(), |mut acc, i| {
+        writeln!(
+            acc,
+            "2024-01-{:02} {:02}:{:02}:{:02} {} User {} logged in from 192.168.1.{}",
+            (i % 28) + 1,
+            i % 24,
+            i % 60,
+            i % 60,
+            ["INFO", "WARN", "ERROR", "DEBUG"][i % 4],
+            i % 1000,
+            i % 256
+        )
+        .unwrap();
+        acc
+    })
 }
 
 fn compress_benchmark(c: &mut Criterion) {
@@ -30,7 +32,7 @@ fn compress_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut alice = ALICEText::new(EncodingMode::Pattern);
             alice.compress(black_box(&small_data)).unwrap()
-        })
+        });
     });
 
     // Medium data (10KB)
@@ -40,7 +42,7 @@ fn compress_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut alice = ALICEText::new(EncodingMode::Pattern);
             alice.compress(black_box(&medium_data)).unwrap()
-        })
+        });
     });
 
     // Large data (100KB)
@@ -50,7 +52,7 @@ fn compress_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut alice = ALICEText::new(EncodingMode::Pattern);
             alice.compress(black_box(&large_data)).unwrap()
-        })
+        });
     });
 
     group.finish();
@@ -69,7 +71,7 @@ fn decompress_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let alice = ALICEText::default();
             alice.decompress(black_box(&compressed)).unwrap()
-        })
+        });
     });
 
     group.finish();
@@ -86,7 +88,7 @@ fn roundtrip_benchmark(c: &mut Criterion) {
             let mut alice = ALICEText::new(EncodingMode::Pattern);
             let compressed = alice.compress(black_box(&data)).unwrap();
             alice.decompress(&compressed).unwrap()
-        })
+        });
     });
 
     group.finish();

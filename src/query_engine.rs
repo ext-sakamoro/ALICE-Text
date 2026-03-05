@@ -49,12 +49,12 @@ pub struct QueryResult {
 
 impl QueryResult {
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.rows.len()
     }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
 
@@ -314,57 +314,54 @@ impl<S: QuerySource> QueryEngine<S> {
         let partial = self.read_raw_column(col_type)?;
 
         // Typed comparison dispatch - no String allocations in hot loop!
+        #[allow(clippy::option_if_let_else)]
         match col_type {
             ColumnType::LogLevels => {
                 let target = LogLevel::parse_level(value) as u8;
-                if let Some(data) = &partial.log_levels {
-                    Ok(self.scan_primitive(data, op, target))
-                } else {
-                    Ok(Vec::new())
-                }
+                partial.log_levels.as_ref().map_or_else(
+                    || Ok(Vec::new()),
+                    |data| Ok(self.scan_primitive(data, op, target)),
+                )
             }
             ColumnType::IPv4 => {
                 let target = self.parse_ipv4(value)?;
-                if let Some(data) = &partial.ipv4_addrs {
-                    Ok(self.scan_primitive(data, op, target))
-                } else {
-                    Ok(Vec::new())
-                }
+                partial.ipv4_addrs.as_ref().map_or_else(
+                    || Ok(Vec::new()),
+                    |data| Ok(self.scan_primitive(data, op, target)),
+                )
             }
             ColumnType::IPv6 => {
                 let target = self.parse_ipv6(value)?;
-                if let Some(data) = &partial.ipv6_addrs {
-                    Ok(self.scan_primitive(data, op, target))
-                } else {
-                    Ok(Vec::new())
-                }
+                partial.ipv6_addrs.as_ref().map_or_else(
+                    || Ok(Vec::new()),
+                    |data| Ok(self.scan_primitive(data, op, target)),
+                )
             }
             ColumnType::Numbers => {
                 let target = value.parse::<f64>().unwrap_or(0.0);
-                if let Some(data) = &partial.numbers {
-                    Ok(self.scan_f64(data, op, target))
-                } else {
-                    Ok(Vec::new())
-                }
+                partial.numbers.as_ref().map_or_else(
+                    || Ok(Vec::new()),
+                    |data| Ok(self.scan_f64(data, op, target)),
+                )
             }
             ColumnType::UUIDs => {
                 let target = self.parse_uuid(value)?;
-                if let Some(data) = &partial.uuids {
-                    Ok(self.scan_primitive(data, op, target))
-                } else {
-                    Ok(Vec::new())
-                }
+                partial.uuids.as_ref().map_or_else(
+                    || Ok(Vec::new()),
+                    |data| Ok(self.scan_primitive(data, op, target)),
+                )
             }
             ColumnType::Timestamps => {
                 // Typed timestamp filtering: parse query ONCE, compare as i64
                 let target_ms = self.parse_query_timestamp(value)?;
-                if let Some(ts_col) = &partial.timestamps {
-                    // Get prefix sums (absolute timestamps in ms) - pure numeric computation
-                    let timestamps_i64 = ts_col.prepare_for_read();
-                    Ok(self.scan_primitive(&timestamps_i64, op, target_ms))
-                } else {
-                    Ok(Vec::new())
-                }
+                partial.timestamps.as_ref().map_or_else(
+                    || Ok(Vec::new()),
+                    |ts_col| {
+                        // Get prefix sums (absolute timestamps in ms) - pure numeric computation
+                        let timestamps_i64 = ts_col.prepare_for_read();
+                        Ok(self.scan_primitive(&timestamps_i64, op, target_ms))
+                    },
+                )
             }
             _ => {
                 // Fallback for string types (emails, urls, paths, etc.)
@@ -770,7 +767,7 @@ pub struct QueryBuilder<'a, S: QuerySource> {
 }
 
 impl<'a, S: QuerySource> QueryBuilder<'a, S> {
-    pub fn new(engine: &'a QueryEngine<S>) -> Self {
+    pub const fn new(engine: &'a QueryEngine<S>) -> Self {
         Self {
             engine,
             select_cols: Vec::new(),

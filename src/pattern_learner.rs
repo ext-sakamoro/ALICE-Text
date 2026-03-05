@@ -42,47 +42,47 @@ pub enum PatternType {
 impl PatternType {
     /// Get the regex pattern for this type
     #[must_use]
-    pub fn regex_pattern(&self) -> &'static str {
+    pub const fn regex_pattern(&self) -> &'static str {
         match self {
-            PatternType::Timestamp => {
+            Self::Timestamp => {
                 r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?"
             }
-            PatternType::Date => r"\b\d{4}-\d{2}-\d{2}\b",
-            PatternType::Time => r"\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b",
-            PatternType::IPv4 => {
+            Self::Date => r"\b\d{4}-\d{2}-\d{2}\b",
+            Self::Time => r"\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b",
+            Self::IPv4 => {
                 r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
             }
-            PatternType::IPv6 => r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b",
-            PatternType::UUID => {
+            Self::IPv6 => r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b",
+            Self::UUID => {
                 r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
             }
-            PatternType::LogLevel => r"\b(?:DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL|TRACE|CRITICAL)\b",
-            PatternType::Path => r"(?:/[a-zA-Z0-9._-]+)+/?",
-            PatternType::URL => r#"https?://[^\s<>"']+"#,
-            PatternType::Number => r"\b\d+(?:\.\d+)?\b",
-            PatternType::Hex => r"\b0x[0-9a-fA-F]+\b",
-            PatternType::Email => r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b",
-            PatternType::Custom => r".*",
+            Self::LogLevel => r"\b(?:DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL|TRACE|CRITICAL)\b",
+            Self::Path => r"(?:/[a-zA-Z0-9._-]+)+/?",
+            Self::URL => r#"https?://[^\s<>"']+"#,
+            Self::Number => r"\b\d+(?:\.\d+)?\b",
+            Self::Hex => r"\b0x[0-9a-fA-F]+\b",
+            Self::Email => r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b",
+            Self::Custom => r".*",
         }
     }
 
     /// Get priority for pattern matching (higher = matched first)
     #[must_use]
-    pub fn priority(&self) -> u8 {
+    pub const fn priority(&self) -> u8 {
         match self {
-            PatternType::Timestamp => 100,
-            PatternType::UUID => 95,
-            PatternType::Email => 90,
-            PatternType::URL => 85,
-            PatternType::IPv6 => 80,
-            PatternType::IPv4 => 75,
-            PatternType::Date => 70,
-            PatternType::Time => 65,
-            PatternType::Path => 60,
-            PatternType::Hex => 55,
-            PatternType::LogLevel => 50,
-            PatternType::Number => 40,
-            PatternType::Custom => 10,
+            Self::Timestamp => 100,
+            Self::UUID => 95,
+            Self::Email => 90,
+            Self::URL => 85,
+            Self::IPv6 => 80,
+            Self::IPv4 => 75,
+            Self::Date => 70,
+            Self::Time => 65,
+            Self::Path => 60,
+            Self::Hex => 55,
+            Self::LogLevel => 50,
+            Self::Number => 40,
+            Self::Custom => 10,
         }
     }
 }
@@ -375,9 +375,10 @@ mod tests {
         let text = "Request ID: 550e8400-e29b-41d4-a716-446655440000";
 
         let matches = learner.find_matches(text);
-        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
-
-        assert!(types.contains(&PatternType::UUID));
+        assert!(matches
+            .iter()
+            .map(|m| m.pattern_type)
+            .any(|x| x == PatternType::UUID));
     }
 
     #[test]
@@ -386,9 +387,10 @@ mod tests {
         let text = "Visit https://example.com/path?query=1";
 
         let matches = learner.find_matches(text);
-        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
-
-        assert!(types.contains(&PatternType::URL));
+        assert!(matches
+            .iter()
+            .map(|m| m.pattern_type)
+            .any(|x| x == PatternType::URL));
     }
 
     #[test]
@@ -396,8 +398,10 @@ mod tests {
         let learner = PatternLearner::new();
         let text = "Contact admin@example.com for support";
         let matches = learner.find_matches(text);
-        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
-        assert!(types.contains(&PatternType::Email));
+        assert!(matches
+            .iter()
+            .map(|m| m.pattern_type)
+            .any(|x| x == PatternType::Email));
     }
 
     #[test]
@@ -405,8 +409,10 @@ mod tests {
         let learner = PatternLearner::new();
         let text = "Memory at 0xDEADBEEF was freed";
         let matches = learner.find_matches(text);
-        let types: Vec<_> = matches.iter().map(|m| m.pattern_type).collect();
-        assert!(types.contains(&PatternType::Hex));
+        assert!(matches
+            .iter()
+            .map(|m| m.pattern_type)
+            .any(|x| x == PatternType::Hex));
     }
 
     #[test]
@@ -470,7 +476,7 @@ mod tests {
     fn test_learned_pattern_examples_capped() {
         let mut pattern = LearnedPattern::new(PatternType::IPv4);
         for i in 0..20 {
-            pattern.add_example(&format!("192.168.1.{}", i));
+            pattern.add_example(&format!("192.168.1.{i}"));
         }
         assert_eq!(pattern.count, 20);
         assert!(pattern.examples.len() <= 5);

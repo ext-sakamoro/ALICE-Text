@@ -41,7 +41,7 @@ impl LogLevel {
     }
 
     #[must_use]
-    pub fn to_str(self) -> &'static str {
+    pub const fn to_str(self) -> &'static str {
         match self {
             Self::Trace => "TRACE",
             Self::Debug => "DEBUG",
@@ -256,13 +256,13 @@ impl TimestampColumn {
 
     /// Number of timestamps stored
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.deltas.len() + self.raw.len()
     }
 
     /// Check if empty
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.deltas.is_empty() && self.raw.is_empty()
     }
 }
@@ -630,7 +630,7 @@ impl ColumnarPayload {
 }
 
 impl LogLevel {
-    fn from_u8(v: u8) -> Self {
+    const fn from_u8(v: u8) -> Self {
         match v {
             0 => Self::Trace,
             1 => Self::Debug,
@@ -816,8 +816,8 @@ mod tests {
 
     #[test]
     fn test_ipv4_encoding() {
-        assert_eq!(parse_ipv4("192.168.1.100"), Some(0xC0A80164));
-        assert_eq!(format_ipv4(0xC0A80164), "192.168.1.100");
+        assert_eq!(parse_ipv4("192.168.1.100"), Some(0xC0A8_0164));
+        assert_eq!(format_ipv4(0xC0A8_0164), "192.168.1.100");
     }
 
     #[test]
@@ -906,9 +906,9 @@ mod tests {
     #[test]
     fn test_ipv4_boundary_values() {
         assert_eq!(parse_ipv4("0.0.0.0"), Some(0));
-        assert_eq!(parse_ipv4("255.255.255.255"), Some(0xFFFFFFFF));
+        assert_eq!(parse_ipv4("255.255.255.255"), Some(0xFFFF_FFFF));
         assert_eq!(format_ipv4(0), "0.0.0.0");
-        assert_eq!(format_ipv4(0xFFFFFFFF), "255.255.255.255");
+        assert_eq!(format_ipv4(0xFFFF_FFFF), "255.255.255.255");
     }
 
     #[test]
@@ -939,7 +939,9 @@ mod tests {
 
     #[test]
     fn test_format_number_float() {
-        let result = format_number(3.14);
+        #[allow(clippy::approx_constant)]
+        let val = 3.14;
+        let result = format_number(val);
         assert!(result.contains("3.14"));
     }
 

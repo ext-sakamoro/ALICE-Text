@@ -26,7 +26,7 @@ pub enum CompressionMode {
 }
 
 impl CompressionMode {
-    fn zstd_level(self) -> i32 {
+    const fn zstd_level(self) -> i32 {
         match self {
             Self::Fast => 3,
             Self::Balanced => 10,
@@ -251,18 +251,18 @@ impl TunedCompressor {
 
     /// Get last compression statistics
     #[must_use]
-    pub fn last_stats(&self) -> Option<&TunedStats> {
+    pub const fn last_stats(&self) -> Option<&TunedStats> {
         self.last_stats.as_ref()
     }
 
     /// Get compression mode
     #[must_use]
-    pub fn mode(&self) -> CompressionMode {
+    pub const fn mode(&self) -> CompressionMode {
         self.mode
     }
 
     /// Set compression mode
-    pub fn set_mode(&mut self, mode: CompressionMode) {
+    pub const fn set_mode(&mut self, mode: CompressionMode) {
         self.mode = mode;
     }
 
@@ -374,7 +374,7 @@ mod tests {
         let log_line = "2024-01-15 10:30:45 INFO User logged in from 192.168.1.100\n";
         let text = log_line.repeat(100);
 
-        let compressed = compressor.compress(&text).unwrap();
+        let _compressed = compressor.compress(&text).unwrap();
         let stats = compressor.last_stats().unwrap();
 
         // Should achieve good compression for repetitive data
@@ -468,13 +468,11 @@ mod tests {
         // Should be fast (< 500ms for 1MB)
         assert!(
             compress_time.as_millis() < 500,
-            "Compress took {:?}",
-            compress_time
+            "Compress took {compress_time:?}"
         );
         assert!(
             decompress_time.as_millis() < 500,
-            "Decompress took {:?}",
-            decompress_time
+            "Decompress took {decompress_time:?}"
         );
 
         let stats = compressor.last_stats().unwrap();
@@ -489,14 +487,14 @@ mod tests {
     #[test]
     fn test_tuned_header_roundtrip() {
         let header = TunedHeader {
-            original_length: 123456789,
+            original_length: 123_456_789,
             mode: CompressionMode::Best,
             pattern_count: 42,
             skeleton_length: 999,
         };
         let bytes = header.to_bytes();
         let restored = TunedHeader::from_bytes(&bytes).unwrap();
-        assert_eq!(restored.original_length, 123456789);
+        assert_eq!(restored.original_length, 123_456_789);
         assert_eq!(restored.pattern_count, 42);
         assert_eq!(restored.skeleton_length, 999);
     }

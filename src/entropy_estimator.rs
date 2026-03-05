@@ -180,7 +180,7 @@ impl EntropyEstimator {
 
         // Repetition score: lower unique bytes = higher repetition
         let inv_max_unique = 1.0 / max_unique as f64;
-        let repetition_score = 1.0 - (unique_bytes as f64 * inv_max_unique);
+        let repetition_score = (unique_bytes as f64).mul_add(-inv_max_unique, 1.0);
 
         // Also factor in how repeated the most common bytes are
         let max_freq = *freq.values().max().unwrap_or(&0);
@@ -207,10 +207,10 @@ impl EntropyEstimator {
         let entropy_ratio = shannon_entropy * RCP_8;
 
         // Pattern bonus (patterns compress well)
-        let pattern_factor = 1.0 - (pattern_coverage * 0.3);
+        let pattern_factor = pattern_coverage.mul_add(-0.3, 1.0);
 
         // Repetition bonus
-        let repetition_factor = 1.0 - (repetition_score * 0.2);
+        let repetition_factor = repetition_score.mul_add(-0.2, 1.0);
 
         // LZMA typically achieves better than theoretical
         // but has overhead for small files
@@ -250,6 +250,7 @@ impl Default for EntropyEstimator {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
 

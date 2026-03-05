@@ -364,7 +364,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             crate::ALICETextError::InvalidMagic => {}
-            other => panic!("Expected InvalidMagic, got {:?}", other),
+            other => panic!("Expected InvalidMagic, got {other:?}"),
         }
     }
 
