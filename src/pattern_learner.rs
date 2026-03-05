@@ -6,6 +6,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 /// Types of patterns that can be detected
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -40,6 +41,7 @@ pub enum PatternType {
 
 impl PatternType {
     /// Get the regex pattern for this type
+    #[must_use]
     pub fn regex_pattern(&self) -> &'static str {
         match self {
             PatternType::Timestamp => {
@@ -65,6 +67,7 @@ impl PatternType {
     }
 
     /// Get priority for pattern matching (higher = matched first)
+    #[must_use]
     pub fn priority(&self) -> u8 {
         match self {
             PatternType::Timestamp => 100,
@@ -113,6 +116,7 @@ pub struct LearnedPattern {
 }
 
 impl LearnedPattern {
+    #[must_use]
     pub fn new(pattern_type: PatternType) -> Self {
         Self {
             pattern_type,
@@ -142,6 +146,7 @@ pub struct PatternDatabase {
 }
 
 impl PatternDatabase {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -156,6 +161,7 @@ impl PatternDatabase {
     }
 
     /// Get the most common pattern types
+    #[must_use]
     pub fn top_patterns(&self, n: usize) -> Vec<(&PatternType, &LearnedPattern)> {
         let mut patterns: Vec<_> = self.patterns.iter().collect();
         patterns.sort_by(|a, b| b.1.count.cmp(&a.1.count));
@@ -163,11 +169,19 @@ impl PatternDatabase {
     }
 
     /// Serialize to JSON bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns a `serde_json::Error` if serialization fails.
     pub fn to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
     }
 
     /// Deserialize from JSON bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns a `serde_json::Error` if deserialization fails.
     pub fn from_bytes(data: &[u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice(data)
     }
@@ -181,6 +195,7 @@ pub struct PatternLearner {
 
 impl PatternLearner {
     /// Create a new pattern learner with default patterns
+    #[must_use]
     pub fn new() -> Self {
         let mut pattern_types: Vec<PatternType> = vec![
             PatternType::Timestamp,
@@ -209,6 +224,7 @@ impl PatternLearner {
     }
 
     /// Learn patterns from text
+    #[must_use]
     pub fn learn(&self, text: &str) -> PatternDatabase {
         let mut db = PatternDatabase::new();
         let mut covered: Vec<bool> = vec![false; text.len()];
@@ -235,6 +251,7 @@ impl PatternLearner {
     }
 
     /// Find all pattern matches in text
+    #[must_use]
     pub fn find_matches(&self, text: &str) -> Vec<PatternMatch> {
         let mut matches = Vec::new();
         let mut covered: Vec<bool> = vec![false; text.len()];
@@ -270,6 +287,7 @@ impl PatternLearner {
     }
 
     /// Replace patterns with placeholders
+    #[must_use]
     pub fn replace_patterns(&self, text: &str) -> (String, Vec<PatternMatch>) {
         let matches = self.find_matches(text);
         let mut result = String::with_capacity(text.len());
@@ -279,7 +297,7 @@ impl PatternLearner {
             // Add text before this match
             result.push_str(&text[last_end..mat.start]);
             // Add placeholder
-            result.push_str(&format!("{{P{}}}", i));
+            write!(result, "{{P{i}}}").unwrap();
             last_end = mat.end;
         }
 
@@ -290,12 +308,13 @@ impl PatternLearner {
     }
 
     /// Restore patterns from placeholders
+    #[must_use]
     pub fn restore_patterns(&self, text: &str, matches: &[PatternMatch]) -> String {
         let mut result = text.to_string();
 
         // Replace in reverse order to maintain positions
         for (i, mat) in matches.iter().enumerate().rev() {
-            let placeholder = format!("{{P{}}}", i);
+            let placeholder = format!("{{P{i}}}");
             result = result.replace(&placeholder, &mat.matched_text);
         }
 

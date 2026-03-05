@@ -30,12 +30,14 @@ pub enum PatternType {
 impl PatternType {
     /// Convert to u8 for compact storage
     #[inline]
+    #[must_use]
     pub fn as_u8(self) -> u8 {
         self as u8
     }
 
     /// Convert from u8
     #[inline]
+    #[must_use]
     pub fn from_u8(v: u8) -> Self {
         match v {
             0 => Self::Timestamp,
@@ -169,6 +171,11 @@ pub struct TunedPatternLearner {
 
 impl TunedPatternLearner {
     /// Create a new tuned pattern learner
+    ///
+    /// # Panics
+    ///
+    /// Panics if the built-in fused regex fails to compile (should never happen with valid patterns).
+    #[must_use]
     pub fn new() -> Self {
         // Build fused regex: (?P<TIMESTAMP>...)|(?P<UUID>...)|...
         let expr = PATTERNS
@@ -196,7 +203,8 @@ impl TunedPatternLearner {
 
     /// Find all matches in text with zero-copy (single pass)
     ///
-    /// Returns matches in a SmallVec to avoid heap allocation for small match counts.
+    /// Returns matches in a `SmallVec` to avoid heap allocation for small match counts.
+    #[must_use]
     pub fn find_matches<'a>(&self, text: &'a str) -> SmallVec<[TunedMatch<'a>; 32]> {
         let mut matches = SmallVec::new();
         let mut covered = vec![false; text.len()];
@@ -237,6 +245,7 @@ impl TunedPatternLearner {
     /// Create skeleton text with placeholders and extract matches
     ///
     /// Returns (skeleton, matches) where skeleton has {0}, {1}, etc. placeholders.
+    #[must_use]
     pub fn extract_skeleton<'a>(&self, text: &'a str) -> (String, SmallVec<[TunedMatch<'a>; 32]>) {
         let matches = self.find_matches(text);
 
@@ -270,12 +279,13 @@ impl TunedPatternLearner {
     }
 
     /// Restore text from skeleton and matches
+    #[must_use]
     pub fn restore_text(&self, skeleton: &str, matches: &[OwnedMatch]) -> String {
         let mut result = skeleton.to_string();
 
         // Replace in reverse order to maintain positions
         for (i, m) in matches.iter().enumerate().rev() {
-            let placeholder = format!("{{{}}}", i);
+            let placeholder = format!("{{{i}}}");
             result = result.replace(&placeholder, &m.matched_text);
         }
 
@@ -283,7 +293,8 @@ impl TunedPatternLearner {
     }
 
     /// Get pattern statistics
-    pub fn get_stats<'a>(&self, matches: &[TunedMatch<'a>]) -> HashMap<PatternType, usize> {
+    #[must_use]
+    pub fn get_stats(&self, matches: &[TunedMatch<'_>]) -> HashMap<PatternType, usize> {
         let mut stats = HashMap::new();
         for m in matches {
             *stats.entry(m.pattern_type).or_insert(0) += 1;

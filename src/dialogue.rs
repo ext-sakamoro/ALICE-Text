@@ -23,10 +23,10 @@ pub const DIALOGUE_VERSION: (u8, u8) = (1, 0);
 // ── FNV-1a (file-local) ───────────────────────────────────────
 #[inline(always)]
 fn fnv1a(data: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for &b in data {
         h ^= b as u64;
-        h = h.wrapping_mul(0x100000001b3);
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
     }
     h
 }
@@ -70,7 +70,7 @@ pub struct RubyAnnotation {
 pub struct DialogueEntry {
     /// Unique dialogue ID
     pub id: u32,
-    /// Speaker index in SpeakerDictionary
+    /// Speaker index in `SpeakerDictionary`
     pub speaker: u16,
     /// Dialogue text
     pub text: String,
@@ -89,6 +89,7 @@ pub struct SpeakerDictionary {
 }
 
 impl SpeakerDictionary {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             names: Vec::new(),
@@ -109,15 +110,20 @@ impl SpeakerDictionary {
     }
 
     /// Look up speaker name by index
+    #[must_use]
     pub fn get(&self, idx: u16) -> Option<&str> {
-        self.names.get(idx as usize).map(|s| s.as_str())
+        self.names
+            .get(idx as usize)
+            .map(std::string::String::as_str)
     }
 
     /// Number of unique speakers
+    #[must_use]
     pub fn len(&self) -> usize {
         self.names.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }
@@ -153,6 +159,7 @@ pub struct DialogueTable {
 }
 
 impl DialogueTable {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             speakers: SpeakerDictionary::new(),
@@ -175,6 +182,7 @@ impl DialogueTable {
 
     /// Look up dialogue by ID.
     /// O(1) if contiguous, O(log n) if sparse.
+    #[must_use]
     pub fn get(&self, id: u32) -> Option<&DialogueEntry> {
         if self.contiguous {
             self.entries.get(id as usize)
@@ -187,21 +195,25 @@ impl DialogueTable {
     }
 
     /// Number of entries
+    #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
     /// Whether IDs are contiguous (O(1) lookup)
+    #[must_use]
     pub fn is_contiguous(&self) -> bool {
         self.contiguous
     }
 
     /// Collect all unique characters across all dialogue text.
     /// Useful for font atlas preloading.
+    #[must_use]
     pub fn unique_chars(&self) -> Vec<char> {
         let mut chars: Vec<char> = self.entries.iter().flat_map(|e| e.text.chars()).collect();
         chars.sort_unstable();
@@ -244,6 +256,7 @@ pub struct DeltaTable {
 }
 
 impl DeltaTable {
+    #[must_use]
     pub fn new(locale: LocaleId) -> Self {
         Self {
             locale,
@@ -259,14 +272,17 @@ impl DeltaTable {
     }
 
     /// Look up an overriding entry
+    #[must_use]
     pub fn get(&self, id: u32) -> Option<&DialogueEntry> {
         self.entries.get(&id)
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -300,6 +316,7 @@ pub struct LocalizationTable {
 }
 
 impl LocalizationTable {
+    #[must_use]
     pub fn new(base_locale: LocaleId) -> Self {
         Self {
             base_locale,
@@ -310,6 +327,7 @@ impl LocalizationTable {
 
     /// Get dialogue entry for a specific locale.
     /// Falls back to base locale if not overridden.
+    #[must_use]
     pub fn get(&self, locale: LocaleId, id: u32) -> Option<&DialogueEntry> {
         // Check delta first
         if locale != self.base_locale {
@@ -332,6 +350,7 @@ impl LocalizationTable {
     }
 
     /// Collect all unique characters across all locales.
+    #[must_use]
     pub fn all_unique_chars(&self) -> Vec<char> {
         let mut chars: Vec<char> = self.base_table.unique_chars();
         for delta in self.locale_deltas.values() {
@@ -345,6 +364,7 @@ impl LocalizationTable {
     }
 
     /// List available locales
+    #[must_use]
     pub fn available_locales(&self) -> Vec<LocaleId> {
         let mut locales = vec![self.base_locale];
         locales.extend(self.locale_deltas.keys());
@@ -381,11 +401,16 @@ pub struct DialogueCompressor {
 }
 
 impl DialogueCompressor {
+    #[must_use]
     pub fn new(mode: DialogueCompressionMode) -> Self {
         Self { mode }
     }
 
     /// Compress a dialogue table to bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization or Zstd compression fails.
     pub fn compress_table(&self, table: &DialogueTable) -> crate::Result<Vec<u8>> {
         let serialized = bincode::serialize(table)
             .map_err(|e| crate::ALICETextError::EncodingError(e.to_string()))?;
@@ -403,6 +428,10 @@ impl DialogueCompressor {
     }
 
     /// Decompress a dialogue table from bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is too short, magic bytes are invalid, or decompression fails.
     pub fn decompress_table(&self, data: &[u8]) -> crate::Result<DialogueTable> {
         if data.len() < 16 {
             return Err(crate::ALICETextError::DecompressionError(
@@ -432,6 +461,10 @@ impl DialogueCompressor {
     }
 
     /// Compress a localization table (multi-locale) to bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization or Zstd compression fails.
     pub fn compress_localization(&self, table: &LocalizationTable) -> crate::Result<Vec<u8>> {
         let serialized = bincode::serialize(table)
             .map_err(|e| crate::ALICETextError::EncodingError(e.to_string()))?;
@@ -449,6 +482,10 @@ impl DialogueCompressor {
     }
 
     /// Decompress a localization table from bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is too short, magic bytes are invalid, or decompression fails.
     pub fn decompress_localization(&self, data: &[u8]) -> crate::Result<LocalizationTable> {
         if data.len() < 16 {
             return Err(crate::ALICETextError::DecompressionError(

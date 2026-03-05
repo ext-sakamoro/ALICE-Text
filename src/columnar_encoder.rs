@@ -1,8 +1,8 @@
-//! Columnar Encoder - Struct of Arrays (SoA) Implementation
+//! Columnar Encoder - Struct of Arrays (`SoA`) Implementation
 //!
 //! Organizes data by pattern type for better compression.
 //! - Same types are stored together (reduces entropy)
-//! - Type-specific encodings (IP as u32, LogLevel as u8, etc.)
+//! - Type-specific encodings (IP as u32, `LogLevel` as u8, etc.)
 //! - Delta encoding for timestamps (massive compression gains)
 
 use crate::tuned_pattern_learner::{PatternType, TunedPatternLearner};
@@ -26,6 +26,7 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
+    #[must_use]
     pub fn parse_level(s: &str) -> Self {
         match s.to_uppercase().as_str() {
             "TRACE" => Self::Trace,
@@ -39,6 +40,7 @@ impl LogLevel {
         }
     }
 
+    #[must_use]
     pub fn to_str(self) -> &'static str {
         match self {
             Self::Trace => "TRACE",
@@ -161,7 +163,7 @@ impl TimestampColumn {
     }
 
     /// Add a timestamp, using delta encoding if possible
-    /// Returns (is_delta, index) where index is into deltas or raw array
+    /// Returns (`is_delta`, index) where index is into deltas or raw array
     pub fn add(&mut self, text: &str) -> (bool, usize) {
         if let Some(ts_ms) = self.parse_timestamp(text) {
             let delta_idx = self.deltas.len();
@@ -188,6 +190,7 @@ impl TimestampColumn {
 
     /// Precompute prefix sums for O(1) timestamp lookup
     /// Call this once after deserialization before accessing timestamps
+    #[must_use]
     pub fn prepare_for_read(&self) -> Vec<i64> {
         let base = self.base_ms.unwrap_or(0);
         let mut prefix_sums = Vec::with_capacity(self.deltas.len());
@@ -200,6 +203,7 @@ impl TimestampColumn {
     }
 
     /// Get delta-encoded timestamp by index (O(1) with precomputed prefix sums)
+    #[must_use]
     pub fn get_delta(&self, delta_idx: usize, prefix_sums: &[i64]) -> Option<String> {
         use chrono::FixedOffset;
 
@@ -219,7 +223,7 @@ impl TimestampColumn {
             if base_str.ends_with('Z') {
                 // Original was Zulu time
                 Some(dt_utc.format("%Y-%m-%dT%H:%M:%SZ").to_string())
-            } else if base_str.contains('+') || base_str.contains("-") && base_str.len() > 19 {
+            } else if base_str.contains('+') || base_str.contains('-') && base_str.len() > 19 {
                 // Original had explicit timezone offset (+09:00 or -05:00)
                 Some(dt_local.format("%Y-%m-%dT%H:%M:%S%:z").to_string())
             } else {
@@ -239,6 +243,7 @@ impl TimestampColumn {
     }
 
     /// Reconstruct timestamp (for backwards compatibility)
+    #[must_use]
     pub fn get(&self, idx: usize) -> Option<String> {
         if idx < self.deltas.len() {
             let prefix_sums = self.prepare_for_read();
@@ -250,11 +255,13 @@ impl TimestampColumn {
     }
 
     /// Number of timestamps stored
+    #[must_use]
     pub fn len(&self) -> usize {
         self.deltas.len() + self.raw.len()
     }
 
     /// Check if empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.deltas.is_empty() && self.raw.is_empty()
     }
@@ -275,7 +282,7 @@ pub struct ColumnarPayload {
     /// Binary skeleton tokens (faster restore than string parsing)
     pub skeleton_tokens: Vec<SkeletonToken>,
 
-    /// Placeholder order: maps placeholder index to (column_type, column_index)
+    /// Placeholder order: maps placeholder index to (`column_type`, `column_index`)
     pub placeholder_map: Vec<(u8, u32)>,
 
     // Type-specific columns
@@ -329,9 +336,10 @@ pub struct ColumnarPayload {
 }
 
 impl ColumnarPayload {
-    pub fn new(skeleton: String) -> Self {
+    #[must_use]
+    pub fn new(skeleton: &str) -> Self {
         // Parse skeleton string into binary tokens
-        let skeleton_tokens = Self::parse_skeleton(&skeleton);
+        let skeleton_tokens = Self::parse_skeleton(skeleton);
 
         Self {
             skeleton_tokens,
@@ -553,6 +561,7 @@ impl ColumnarPayload {
     }
 
     /// Get value for placeholder N
+    #[must_use]
     pub fn get_value(&self, placeholder_idx: usize) -> Option<String> {
         let ts_prefix_sums = self.timestamps.prepare_for_read();
         self.get_value_fast(placeholder_idx, &ts_prefix_sums)
@@ -561,6 +570,7 @@ impl ColumnarPayload {
     /// Restore original text from skeleton tokens and columns
     ///
     /// Uses pre-parsed binary tokens for O(N) performance with zero parsing overhead.
+    #[must_use]
     pub fn restore(&self) -> String {
         // Pre-compute timestamp prefix sums once for O(1) lookup
         let ts_prefix_sums = self.timestamps.prepare_for_read();
@@ -597,6 +607,7 @@ impl ColumnarPayload {
     }
 
     /// Get compression statistics
+    #[must_use]
     pub fn stats(&self) -> HashMap<&'static str, usize> {
         let mut stats = HashMap::new();
         stats.insert("timestamps", self.timestamps.len());
@@ -647,7 +658,7 @@ fn format_ipv4(ip: u32) -> String {
 fn parse_uuid(s: &str) -> Option<u128> {
     // UUID format: 8-4-4-4-12 hex chars with dashes
     // e.g., "550e8400-e29b-41d4-a716-446655440000"
-    let hex: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    let hex: String = s.chars().filter(char::is_ascii_hexdigit).collect();
     if hex.len() != 32 {
         return None;
     }
@@ -656,7 +667,7 @@ fn parse_uuid(s: &str) -> Option<u128> {
 
 /// Format u128 back to UUID string
 fn format_uuid(uuid: u128) -> String {
-    let hex = format!("{:032x}", uuid);
+    let hex = format!("{uuid:032x}");
     format!(
         "{}-{}-{}-{}-{}",
         &hex[0..8],
@@ -754,9 +765,9 @@ fn format_time_from_ms(ms: u32) -> String {
     let millis = ms % 1000;
 
     if millis > 0 {
-        format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
+        format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}")
     } else {
-        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+        format!("{hours:02}:{minutes:02}:{seconds:02}")
     }
 }
 
@@ -766,6 +777,7 @@ pub struct ColumnarEncoder {
 }
 
 impl ColumnarEncoder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             learner: TunedPatternLearner::new(),
@@ -773,9 +785,10 @@ impl ColumnarEncoder {
     }
 
     /// Encode text into columnar payload
+    #[must_use]
     pub fn encode(&self, text: &str) -> ColumnarPayload {
         let (skeleton, matches) = self.learner.extract_skeleton(text);
-        let mut payload = ColumnarPayload::new(skeleton);
+        let mut payload = ColumnarPayload::new(&skeleton);
 
         for m in matches {
             payload.add_match(m.pattern_type, &m.matched_text);
@@ -785,6 +798,7 @@ impl ColumnarEncoder {
     }
 
     /// Decode columnar payload back to text
+    #[must_use]
     pub fn decode(&self, payload: &ColumnarPayload) -> String {
         payload.restore()
     }
@@ -998,7 +1012,7 @@ mod tests {
 
     #[test]
     fn test_payload_is_empty_and_len() {
-        let payload = ColumnarPayload::new("test".to_string());
+        let payload = ColumnarPayload::new("test");
         assert!(payload.timestamps.is_empty());
         assert_eq!(payload.timestamps.len(), 0);
     }

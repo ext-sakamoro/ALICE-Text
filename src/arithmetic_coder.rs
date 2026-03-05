@@ -24,6 +24,7 @@ pub struct FrequencyModel {
 
 impl FrequencyModel {
     /// Create a new frequency model
+    #[must_use]
     pub fn new() -> Self {
         Self {
             frequencies: HashMap::new(),
@@ -33,6 +34,7 @@ impl FrequencyModel {
     }
 
     /// Create from byte data
+    #[must_use]
     pub fn from_data(data: &[u8]) -> Self {
         let mut model = Self::new();
         for &byte in data {
@@ -66,6 +68,7 @@ impl FrequencyModel {
     }
 
     /// Get probability range for a symbol
+    #[must_use]
     pub fn get_range(&self, symbol: u8) -> Option<(u64, u64, u64)> {
         for &(s, low, high) in &self.cumulative {
             if s == symbol {
@@ -76,6 +79,7 @@ impl FrequencyModel {
     }
 
     /// Get symbol from cumulative frequency value
+    #[must_use]
     pub fn get_symbol(&self, value: u64) -> Option<u8> {
         for &(symbol, low, high) in &self.cumulative {
             if value >= low && value < high {
@@ -92,11 +96,13 @@ impl FrequencyModel {
     }
 
     /// Get total frequency
+    #[must_use]
     pub fn total(&self) -> u64 {
         self.total
     }
 
     /// Check if model is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.total == 0
     }
@@ -126,6 +132,7 @@ pub struct ArithmeticEncoder {
 
 impl ArithmeticEncoder {
     /// Create a new encoder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             low: 0,
@@ -209,6 +216,7 @@ impl ArithmeticEncoder {
     }
 
     /// Finish encoding and get output
+    #[must_use]
     pub fn finish(mut self) -> Vec<u8> {
         // Output final bits to distinguish the interval
         self.pending_bits += 1;
@@ -236,6 +244,7 @@ impl ArithmeticEncoder {
     }
 
     /// Get current encoded size
+    #[must_use]
     pub fn encoded_size(&self) -> usize {
         self.output.len()
     }
@@ -265,6 +274,7 @@ pub struct ArithmeticDecoder {
 
 impl ArithmeticDecoder {
     /// Create a new decoder
+    #[must_use]
     pub fn new(data: Vec<u8>) -> Self {
         let mut decoder = Self {
             low: 0,

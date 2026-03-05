@@ -15,6 +15,7 @@ pub struct ExceptionDecoder {
 
 impl ExceptionDecoder {
     /// Create a new decoder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             pattern_learner: PatternLearner::new(),
@@ -22,6 +23,10 @@ impl ExceptionDecoder {
     }
 
     /// Decode bytes to text
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is too short, magic/version is invalid, or decompression fails.
     pub fn decode_from_bytes(&self, data: &[u8]) -> Result<String> {
         // Minimum size: magic (8) + version (2) + header (32) = 42
         if data.len() < 42 {
@@ -59,7 +64,7 @@ impl ExceptionDecoder {
         } else {
             // Direct decompression - data is just the original text
             String::from_utf8(decompressed)
-                .map_err(|e| ALICETextError::DecompressionError(format!("UTF-8 error: {}", e)))
+                .map_err(|e| ALICETextError::DecompressionError(format!("UTF-8 error: {e}")))
         }
     }
 
@@ -77,6 +82,7 @@ impl ExceptionDecoder {
     }
 
     /// Parse binary payload format
+    #[allow(clippy::unused_self)]
     fn parse_binary_payload(&self, data: &[u8]) -> Result<(Vec<PatternMatch>, String)> {
         use crate::pattern_learner::PatternType;
 
@@ -172,15 +178,20 @@ impl ExceptionDecoder {
     }
 
     /// Decompress LZMA data
+    #[allow(clippy::unused_self)]
     fn decompress_lzma(&self, data: &[u8]) -> Result<Vec<u8>> {
         let mut decompressed = Vec::new();
         lzma_decompress(&mut std::io::Cursor::new(data), &mut decompressed).map_err(|e| {
-            ALICETextError::DecompressionError(format!("LZMA decompression failed: {}", e))
+            ALICETextError::DecompressionError(format!("LZMA decompression failed: {e}"))
         })?;
         Ok(decompressed)
     }
 
     /// Get header from compressed data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is too short, magic is invalid, or header parsing fails.
     pub fn read_header(&self, data: &[u8]) -> Result<ExceptionHeader> {
         if data.len() < 42 {
             return Err(ALICETextError::DecompressionError(
@@ -197,6 +208,10 @@ impl ExceptionDecoder {
     }
 
     /// Verify data integrity without full decompression
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if header parsing fails after passing magic/version checks.
     pub fn verify(&self, data: &[u8]) -> Result<bool> {
         // Check minimum size
         if data.len() < 42 {

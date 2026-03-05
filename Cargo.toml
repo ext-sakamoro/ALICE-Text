@@ -73,6 +73,7 @@ tempfile = "3.10"
 
 [features]
 default = []
+ffi = []                  # C/C++/C# FFI bindings
 python = ["pyo3"]
 ml = ["dep:alice-ml"]  # ALICE-ML ternary inference for text prediction
 voice = ["dep:alice-voice"]  # ALICE-Voice bridge for speech encoding hints

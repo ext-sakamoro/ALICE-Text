@@ -48,21 +48,25 @@ pub struct QueryResult {
 }
 
 impl QueryResult {
+    #[must_use]
     pub fn len(&self) -> usize {
         self.rows.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
 
+    #[must_use]
     pub fn column_values(&self, column: &str) -> Vec<&str> {
         self.rows
             .iter()
-            .filter_map(|row| row.values.get(column).map(|s| s.as_str()))
+            .filter_map(|row| row.values.get(column).map(std::string::String::as_str))
             .collect()
     }
 
+    #[must_use]
     pub fn to_table(&self) -> String {
         if self.rows.is_empty() {
             return "(empty result)".to_string();
@@ -78,7 +82,7 @@ impl QueryResult {
             let values: Vec<&str> = self
                 .columns
                 .iter()
-                .map(|c| row.values.get(c).map(|s| s.as_str()).unwrap_or(""))
+                .map(|c| row.values.get(c).map_or("", std::string::String::as_str))
                 .collect();
             output.push_str(&values.join("\t"));
             output.push('\n');
@@ -157,6 +161,10 @@ impl QuerySource for BufferSource {
 
 impl QueryEngine<MmapSource> {
     /// Open a file with memory mapping for maximum speed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened, memory-mapped, or parsed.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path.as_ref()).map_err(ALICETextError::Io)?;
         let mmap = unsafe { Mmap::map(&file).map_err(ALICETextError::Io)? };
@@ -175,6 +183,10 @@ impl QueryEngine<MmapSource> {
 
 impl QueryEngine<BufferSource> {
     /// Create from in-memory data (for tests/Cursor compatibility)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading the data or parsing the metadata fails.
     pub fn from_reader<R: Read>(mut reader: R) -> Result<Self> {
         let mut data = Vec::new();
         reader.read_to_end(&mut data)?;
@@ -235,6 +247,10 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Read a single column with String conversion (backward compatible)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the column name is unknown or decompression fails.
     pub fn select_column(&self, name: &str) -> Result<Vec<String>> {
         let col_type = self.name_to_type(name)?;
         let partial = self.read_raw_column(col_type)?;
@@ -242,6 +258,10 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Read multiple columns (parallel decompression)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any column name is unknown or decompression fails.
     pub fn select_columns(&self, names: &[&str]) -> Result<QueryResult> {
         let col_types: Vec<ColumnType> = names
             .iter()
@@ -265,7 +285,7 @@ impl<S: QuerySource> QueryEngine<S> {
 
         // Build rows
         let mut result = QueryResult {
-            columns: names.iter().map(|s| s.to_string()).collect(),
+            columns: names.iter().map(std::string::ToString::to_string).collect(),
             rows: Vec::with_capacity(max_rows),
         };
 
@@ -285,6 +305,10 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Optimized filter: Scans raw primitives without String allocation
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the column name is unknown, the value cannot be parsed, or decompression fails.
     pub fn filter_op(&self, column: &str, op: Op, value: &str) -> Result<Vec<usize>> {
         let col_type = self.name_to_type(column)?;
         let partial = self.read_raw_column(col_type)?;
@@ -351,6 +375,10 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Filter with closure (legacy compatibility)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the column name is unknown or decompression fails.
     pub fn filter<F>(&self, column: &str, predicate: F) -> Result<Vec<usize>>
     where
         F: Fn(&str) -> bool,
@@ -365,6 +393,10 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Select values at specific indices
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the column name is unknown or decompression fails.
     pub fn select_at(&self, column: &str, indices: &[usize]) -> Result<Vec<String>> {
         let all_values = self.select_column(column)?;
         Ok(indices
@@ -374,6 +406,11 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Full query: filter on one column, select from others (parallel)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any column name is unknown, the filter value cannot be parsed,
+    /// or decompression fails.
     pub fn query(
         &self,
         select_columns: &[&str],
@@ -386,7 +423,10 @@ impl<S: QuerySource> QueryEngine<S> {
 
         if indices.is_empty() {
             return Ok(QueryResult {
-                columns: select_columns.iter().map(|s| s.to_string()).collect(),
+                columns: select_columns
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
                 rows: Vec::new(),
             });
         }
@@ -405,7 +445,10 @@ impl<S: QuerySource> QueryEngine<S> {
 
         // Step 3: Materialize only matching rows (pinpoint extraction)
         let mut result = QueryResult {
-            columns: select_columns.iter().map(|s| s.to_string()).collect(),
+            columns: select_columns
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             rows: Vec::with_capacity(indices.len()),
         };
 
@@ -425,6 +468,10 @@ impl<S: QuerySource> QueryEngine<S> {
     }
 
     /// Decompress entire file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decompression fails.
     pub fn decompress_all(&self) -> Result<String> {
         FormatV3Writer::decompress(self.source.as_slice())
     }
@@ -434,6 +481,7 @@ impl<S: QuerySource> QueryEngine<S> {
     /// Generic scanner for primitive types (u8, u32, u128)
     /// Compiles down to SIMD instructions in release mode
     #[inline]
+    #[allow(clippy::unused_self)]
     fn scan_primitive<T>(&self, data: &[T], op: Op, target: T) -> Vec<usize>
     where
         T: PartialOrd + Copy,
@@ -455,6 +503,7 @@ impl<S: QuerySource> QueryEngine<S> {
 
     /// Scanner for f64 (needs special handling for NaN)
     #[inline]
+    #[allow(clippy::unused_self)]
     fn scan_f64(&self, data: &[f64], op: Op, target: f64) -> Vec<usize> {
         data.iter()
             .enumerate()
@@ -473,6 +522,7 @@ impl<S: QuerySource> QueryEngine<S> {
 
     /// Scanner for string types
     #[inline]
+    #[allow(clippy::unused_self)]
     fn scan_strings(&self, data: &[String], op: Op, target: &str) -> Vec<usize> {
         data.iter()
             .enumerate()
@@ -498,6 +548,7 @@ impl<S: QuerySource> QueryEngine<S> {
         FormatV3Writer::read_columns(&mut cursor, &self.metadata, &[col_type])
     }
 
+    #[allow(clippy::unused_self)]
     fn name_to_type(&self, name: &str) -> Result<ColumnType> {
         match name {
             "skeleton" => Ok(ColumnType::Skeleton),
@@ -519,40 +570,42 @@ impl<S: QuerySource> QueryEngine<S> {
             "placeholder_map" => Ok(ColumnType::PlaceholderMap),
             "timestamps_raw" => Ok(ColumnType::TimestampsRaw),
             _ => Err(ALICETextError::DecompressionError(format!(
-                "Unknown column: {}",
-                name
+                "Unknown column: {name}"
             ))),
         }
     }
 
     // === Private: Parsing ===
 
+    #[allow(clippy::unused_self)]
     fn parse_ipv4(&self, s: &str) -> Result<u32> {
         s.parse::<std::net::Ipv4Addr>()
             .map(u32::from)
-            .map_err(|_| ALICETextError::DecompressionError(format!("Invalid IPv4: {}", s)))
+            .map_err(|_| ALICETextError::DecompressionError(format!("Invalid IPv4: {s}")))
     }
 
+    #[allow(clippy::unused_self)]
     fn parse_ipv6(&self, s: &str) -> Result<u128> {
         s.parse::<std::net::Ipv6Addr>()
             .map(u128::from)
-            .map_err(|_| ALICETextError::DecompressionError(format!("Invalid IPv6: {}", s)))
+            .map_err(|_| ALICETextError::DecompressionError(format!("Invalid IPv6: {s}")))
     }
 
+    #[allow(clippy::unused_self)]
     fn parse_uuid(&self, s: &str) -> Result<u128> {
-        let hex: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        let hex: String = s.chars().filter(char::is_ascii_hexdigit).collect();
         if hex.len() != 32 {
             return Err(ALICETextError::DecompressionError(format!(
-                "Invalid UUID: {}",
-                s
+                "Invalid UUID: {s}"
             )));
         }
         u128::from_str_radix(&hex, 16)
-            .map_err(|_| ALICETextError::DecompressionError(format!("Invalid UUID hex: {}", s)))
+            .map_err(|_| ALICETextError::DecompressionError(format!("Invalid UUID hex: {s}")))
     }
 
     /// Parse query timestamp string to Unix milliseconds (i64)
     /// Supports multiple formats: "YYYY-MM-DD HH:MM:SS", "YYYY-MM-DDTHH:MM:SS", etc.
+    #[allow(clippy::unused_self)]
     fn parse_query_timestamp(&self, s: &str) -> Result<i64> {
         // Try common formats
         let formats = [
@@ -576,13 +629,14 @@ impl<S: QuerySource> QueryEngine<S> {
         }
 
         Err(ALICETextError::DecompressionError(format!(
-            "Invalid timestamp format: {}. Expected YYYY-MM-DD HH:MM:SS",
-            s
+            "Invalid timestamp format: {s}. Expected YYYY-MM-DD HH:MM:SS"
         )))
     }
 
     // === Private: Value Extraction ===
 
+    #[allow(clippy::unnecessary_wraps)]
+    #[allow(clippy::unused_self)]
     fn partial_to_strings(
         &self,
         partial: &PartialPayload,
@@ -624,7 +678,7 @@ impl<S: QuerySource> QueryEngine<S> {
                     uuids
                         .iter()
                         .map(|&uuid| {
-                            let hex = format!("{:032x}", uuid);
+                            let hex = format!("{uuid:032x}");
                             format!(
                                 "{}-{}-{}-{}-{}",
                                 &hex[0..8],
@@ -644,6 +698,7 @@ impl<S: QuerySource> QueryEngine<S> {
         })
     }
 
+    #[allow(clippy::unused_self)]
     fn get_value_at(
         &self,
         partial: &PartialPayload,
@@ -687,7 +742,7 @@ impl<S: QuerySource> QueryEngine<S> {
                 }
             }),
             ColumnType::UUIDs => partial.uuids.as_ref()?.get(index).map(|&uuid| {
-                let hex = format!("{:032x}", uuid);
+                let hex = format!("{uuid:032x}");
                 format!(
                     "{}-{}-{}-{}-{}",
                     &hex[0..8],
@@ -725,11 +780,16 @@ impl<'a, S: QuerySource> QueryBuilder<'a, S> {
         }
     }
 
+    #[must_use]
     pub fn select(mut self, columns: &[&str]) -> Self {
-        self.select_cols = columns.iter().map(|s| s.to_string()).collect();
+        self.select_cols = columns
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         self
     }
 
+    #[must_use]
     pub fn filter(mut self, column: &str, op: Op, value: &str) -> Self {
         self.filter_col = Some(column.to_string());
         self.filter_op = Some(op);
@@ -737,8 +797,15 @@ impl<'a, S: QuerySource> QueryBuilder<'a, S> {
         self
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the query fails due to unknown columns or decompression errors.
     pub fn execute(self) -> Result<QueryResult> {
-        let select_refs: Vec<&str> = self.select_cols.iter().map(|s| s.as_str()).collect();
+        let select_refs: Vec<&str> = self
+            .select_cols
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
 
         if let (Some(filter_col), Some(op), Some(filter_value)) =
             (self.filter_col, self.filter_op, self.filter_value)
@@ -752,11 +819,19 @@ impl<'a, S: QuerySource> QueryBuilder<'a, S> {
 }
 
 /// Convenience function to compress text with v3 format
+///
+/// # Errors
+///
+/// Returns an error if Bincode serialization or Zstd compression fails.
 pub fn compress_v3(text: &str, level: CompressionLevel) -> Result<Vec<u8>> {
     FormatV3Writer::new(level).compress(text)
 }
 
 /// Convenience function to decompress v3 format
+///
+/// # Errors
+///
+/// Returns an error if decompression fails.
 pub fn decompress_v3(data: &[u8]) -> Result<String> {
     FormatV3Writer::decompress(data)
 }

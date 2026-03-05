@@ -39,6 +39,7 @@ impl ExceptionHeader {
     pub const SIZE: usize = 32;
 
     /// Create a new header
+    #[must_use]
     pub fn new(mode: EncodingMode) -> Self {
         Self {
             mode,
@@ -51,6 +52,7 @@ impl ExceptionHeader {
     }
 
     /// Serialize header to bytes
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         let mut bytes = [0u8; Self::SIZE];
 
@@ -85,6 +87,10 @@ impl ExceptionHeader {
     }
 
     /// Deserialize header from bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice is too short or contains an invalid mode byte.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < Self::SIZE {
             return Err(ALICETextError::DecompressionError(
@@ -143,6 +149,7 @@ pub struct ExceptionEncoder {
 
 impl ExceptionEncoder {
     /// Create a new encoder
+    #[must_use]
     pub fn new(mode: EncodingMode) -> Self {
         Self {
             mode,
@@ -150,7 +157,11 @@ impl ExceptionEncoder {
         }
     }
 
-    /// Encode text to EncodedText structure
+    /// Encode text to `EncodedText` structure
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the encoding mode produces an unrecoverable failure.
     pub fn encode(&self, text: &str) -> Result<EncodedText> {
         match self.mode {
             EncodingMode::Pattern => self.encode_pattern(text),
@@ -159,6 +170,7 @@ impl ExceptionEncoder {
     }
 
     /// Pattern-based encoding
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_pattern(&self, text: &str) -> Result<EncodedText> {
         // Learn patterns
         let pattern_db = self.pattern_learner.learn(text);
@@ -187,6 +199,7 @@ impl ExceptionEncoder {
     }
 
     /// N-gram based encoding (simplified - stores compressed text)
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_ngram(&self, text: &str) -> Result<EncodedText> {
         let token_count = text.split_whitespace().count();
 
@@ -207,12 +220,20 @@ impl ExceptionEncoder {
     }
 
     /// Encode text to bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encoding or LZMA compression fails.
     pub fn encode_to_bytes(&self, text: &str) -> Result<Vec<u8>> {
         let encoded = self.encode(text)?;
         self.to_bytes(&encoded)
     }
 
-    /// Convert EncodedText to bytes
+    /// Convert `EncodedText` to bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if LZMA compression fails.
     pub fn to_bytes(&self, encoded: &EncodedText) -> Result<Vec<u8>> {
         let mut result = Vec::new();
 
@@ -252,7 +273,7 @@ impl ExceptionEncoder {
         header.compressed_length = payload.len() as u32;
 
         // Use pattern_db_length field as mode flag (0 = direct, 1 = pattern)
-        header.pattern_db_length = if use_pattern_mode { 1 } else { 0 };
+        header.pattern_db_length = u32::from(use_pattern_mode);
 
         // Write header
         result.extend_from_slice(&header.to_bytes());
@@ -264,6 +285,8 @@ impl ExceptionEncoder {
     }
 
     /// Create payload for compression
+    #[allow(clippy::unnecessary_wraps)]
+    #[allow(clippy::unused_self)]
     fn create_payload(&self, encoded: &EncodedText) -> Result<Vec<u8>> {
         // Use a compact binary format:
         // - For pattern mode: store pattern_matches and processed_text
@@ -325,11 +348,11 @@ impl ExceptionEncoder {
     }
 
     /// Compress data with LZMA
+    #[allow(clippy::unused_self)]
     fn compress_lzma(&self, data: &[u8]) -> Result<Vec<u8>> {
         let mut compressed = Vec::new();
-        lzma_compress(&mut std::io::Cursor::new(data), &mut compressed).map_err(|e| {
-            ALICETextError::EncodingError(format!("LZMA compression failed: {}", e))
-        })?;
+        lzma_compress(&mut std::io::Cursor::new(data), &mut compressed)
+            .map_err(|e| ALICETextError::EncodingError(format!("LZMA compression failed: {e}")))?;
         Ok(compressed)
     }
 }

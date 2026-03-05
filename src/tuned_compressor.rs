@@ -52,6 +52,7 @@ impl TunedHeader {
     /// Header size in bytes (fixed)
     pub const SIZE: usize = 24;
 
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         let mut bytes = [0u8; Self::SIZE];
 
@@ -65,6 +66,9 @@ impl TunedHeader {
         bytes
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice is too short or contains a slice conversion failure.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < Self::SIZE {
             return Err(ALICETextError::DecompressionError(
@@ -75,6 +79,7 @@ impl TunedHeader {
         let to_err = || ALICETextError::DecompressionError("Header slice error".to_string());
         Ok(Self {
             original_length: u64::from_le_bytes(bytes[0..8].try_into().map_err(|_| to_err())?),
+            #[allow(clippy::match_same_arms)]
             mode: match bytes[8] {
                 0 => CompressionMode::Fast,
                 1 => CompressionMode::Balanced,
@@ -109,6 +114,7 @@ pub struct TunedCompressor {
 
 impl TunedCompressor {
     /// Create a new tuned compressor
+    #[must_use]
     pub fn new(mode: CompressionMode) -> Self {
         Self {
             encoder: ColumnarEncoder::new(),
@@ -118,21 +124,28 @@ impl TunedCompressor {
     }
 
     /// Create with default balanced mode
+    #[must_use]
     pub fn default_balanced() -> Self {
         Self::new(CompressionMode::Balanced)
     }
 
     /// Create with fast mode
+    #[must_use]
     pub fn fast() -> Self {
         Self::new(CompressionMode::Fast)
     }
 
     /// Create with best compression
+    #[must_use]
     pub fn best() -> Self {
         Self::new(CompressionMode::Best)
     }
 
     /// Compress text to bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Bincode serialization or Zstd compression fails.
     pub fn compress(&mut self, text: &str) -> Result<Vec<u8>> {
         let original_size = text.len();
 
@@ -143,12 +156,12 @@ impl TunedCompressor {
 
         // Step 2: Serialize payload with Bincode
         let serialized = bincode::serialize(&payload)
-            .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {}", e)))?;
+            .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
 
         // Step 3: Compress with Zstd
         let compressed =
             zstd::stream::encode_all(std::io::Cursor::new(&serialized), self.mode.zstd_level())
-                .map_err(|e| ALICETextError::EncodingError(format!("Zstd error: {}", e)))?;
+                .map_err(|e| ALICETextError::EncodingError(format!("Zstd error: {e}")))?;
 
         // Step 4: Build final output
         // Format: MAGIC (8) + VERSION (2) + HEADER (24) + COMPRESSED_DATA
@@ -191,6 +204,11 @@ impl TunedCompressor {
     }
 
     /// Decompress bytes to text
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is too short, magic is invalid, version is legacy,
+    /// or Zstd/Bincode decompression fails.
     pub fn decompress(&self, data: &[u8]) -> Result<String> {
         // Minimum size check
         let min_size = 8 + 2 + TunedHeader::SIZE;
@@ -221,22 +239,24 @@ impl TunedCompressor {
 
         // Decompress with Zstd
         let decompressed = zstd::stream::decode_all(std::io::Cursor::new(compressed_data))
-            .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {}", e)))?;
+            .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {e}")))?;
 
         // Deserialize with Bincode
         let payload: ColumnarPayload = bincode::deserialize(&decompressed)
-            .map_err(|e| ALICETextError::DecompressionError(format!("Bincode error: {}", e)))?;
+            .map_err(|e| ALICETextError::DecompressionError(format!("Bincode error: {e}")))?;
 
         // Restore text
         Ok(self.encoder.decode(&payload))
     }
 
     /// Get last compression statistics
+    #[must_use]
     pub fn last_stats(&self) -> Option<&TunedStats> {
         self.last_stats.as_ref()
     }
 
     /// Get compression mode
+    #[must_use]
     pub fn mode(&self) -> CompressionMode {
         self.mode
     }
@@ -247,6 +267,10 @@ impl TunedCompressor {
     }
 
     /// Verify compressed data without full decompression
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if header parsing fails after passing initial checks.
     pub fn verify(&self, data: &[u8]) -> Result<bool> {
         let min_size = 8 + 2 + TunedHeader::SIZE;
         if data.len() < min_size {
@@ -268,6 +292,10 @@ impl TunedCompressor {
     }
 
     /// Read header from compressed data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is too short, magic is invalid, or header parsing fails.
     pub fn read_header(&self, data: &[u8]) -> Result<TunedHeader> {
         let min_size = 8 + 2 + TunedHeader::SIZE;
         if data.len() < min_size {
@@ -291,12 +319,20 @@ impl Default for TunedCompressor {
 }
 
 /// Convenience function to compress with tuned compressor
+///
+/// # Errors
+///
+/// Returns an error if Bincode serialization or Zstd compression fails.
 pub fn compress_tuned(text: &str, mode: CompressionMode) -> Result<Vec<u8>> {
     let mut compressor = TunedCompressor::new(mode);
     compressor.compress(text)
 }
 
 /// Convenience function to decompress tuned format
+///
+/// # Errors
+///
+/// Returns an error if the data is invalid or decompression fails.
 pub fn decompress_tuned(data: &[u8]) -> Result<String> {
     let compressor = TunedCompressor::default();
     compressor.decompress(data)

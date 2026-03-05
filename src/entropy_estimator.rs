@@ -28,11 +28,13 @@ pub struct EntropyEstimate {
 
 impl EntropyEstimate {
     /// Check if compression is likely beneficial
+    #[must_use]
     pub fn is_compressible(&self) -> bool {
         self.estimated_ratio < 0.9
     }
 
     /// Get human-readable compression quality
+    #[must_use]
     pub fn quality(&self) -> &'static str {
         match self.estimated_ratio {
             r if r < 0.1 => "Excellent",
@@ -58,6 +60,7 @@ impl EntropyEstimator {
     const HEADER_OVERHEAD: usize = 42;
 
     /// Create a new estimator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             pattern_learner: PatternLearner::new(),
@@ -66,6 +69,7 @@ impl EntropyEstimator {
     }
 
     /// Estimate compression for text
+    #[must_use]
     pub fn estimate(&self, text: &str) -> EntropyEstimate {
         let bytes = text.as_bytes();
         let original_size = bytes.len();
@@ -121,6 +125,7 @@ impl EntropyEstimator {
     }
 
     /// Calculate Shannon entropy in bits per byte
+    #[allow(clippy::unused_self)]
     fn calculate_shannon_entropy(&self, data: &[u8]) -> f64 {
         if data.is_empty() {
             return 0.0;
@@ -159,6 +164,7 @@ impl EntropyEstimator {
     }
 
     /// Calculate repetition score and unique byte count
+    #[allow(clippy::unused_self)]
     fn calculate_repetition(&self, data: &[u8]) -> (f64, usize) {
         if data.is_empty() {
             return (0.0, 0);
@@ -187,6 +193,7 @@ impl EntropyEstimator {
     }
 
     /// Estimate compression ratio based on various factors
+    #[allow(clippy::unused_self)]
     fn estimate_ratio(
         &self,
         original_size: usize,
@@ -223,11 +230,13 @@ impl EntropyEstimator {
     }
 
     /// Quick entropy check without full estimation
+    #[must_use]
     pub fn quick_entropy(&self, data: &[u8]) -> f64 {
         self.calculate_shannon_entropy(data)
     }
 
     /// Check if data is likely compressible
+    #[must_use]
     pub fn is_compressible(&self, text: &str) -> bool {
         let estimate = self.estimate(text);
         estimate.is_compressible()

@@ -2,6 +2,16 @@
 
 All notable changes to ALICE-Text will be documented in this file.
 
+## [1.0.1] - 2026-03-04
+
+### Added
+- `ffi` — 20 `extern "C"` FFI functions (compress, decompress, tuned, stats, entropy, dialogue)
+- Unity C# bindings (`bindings/unity/AliceText.cs`) — 20 DllImport + Compressor/DialogueTable classes
+- UE5 C++ header (`bindings/ue5/AliceText.h`) — 20 extern C + RAII FCompressor/FDialogueTable wrappers
+
+### Fixed
+- `cargo fmt` trailing whitespace in multiple source files
+
 ## [1.0.0] - 2026-02-23
 
 ### Added

@@ -36,6 +36,19 @@
 //! assert_eq!(text, decompressed);
 //! ```
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::module_name_repetitions,
+    clippy::inline_always,
+    clippy::too_many_lines
+)]
+
 // --- Global Allocator: mimalloc (Microsoft's high-performance allocator) ---
 #[cfg(not(target_env = "msvc"))]
 use mimalloc::MiMalloc;
@@ -143,6 +156,7 @@ pub struct CompressionStats {
 
 impl CompressionStats {
     /// Compression ratio (lower is better)
+    #[must_use]
     pub fn compression_ratio(&self) -> f64 {
         if self.original_size == 0 {
             return 0.0;
@@ -151,6 +165,7 @@ impl CompressionStats {
     }
 
     /// Exception rate (lower means more predictable)
+    #[must_use]
     pub fn exception_rate(&self) -> f64 {
         if self.token_count == 0 {
             return 0.0;
@@ -159,12 +174,13 @@ impl CompressionStats {
     }
 
     /// Space savings percentage
+    #[must_use]
     pub fn space_savings(&self) -> f64 {
         1.0 - self.compression_ratio()
     }
 }
 
-/// Main ALICE-Text compressor (v2: uses TunedCompressor with Zstd + Columnar encoding)
+/// Main ALICE-Text compressor (v2: uses `TunedCompressor` with Zstd + Columnar encoding)
 pub struct ALICEText {
     tuned: TunedCompressor,
     legacy_decoder: ExceptionDecoder,
@@ -173,6 +189,7 @@ pub struct ALICEText {
 
 impl ALICEText {
     /// Create a new ALICE-Text instance
+    #[must_use]
     pub fn new(_mode: EncodingMode) -> Self {
         Self {
             tuned: TunedCompressor::default_balanced(),
@@ -181,7 +198,11 @@ impl ALICEText {
         }
     }
 
-    /// Compress text to bytes (uses TunedCompressor v2)
+    /// Compress text to bytes (uses `TunedCompressor` v2)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying compression fails.
     pub fn compress(&mut self, text: &str) -> Result<Vec<u8>> {
         let compressed = self.tuned.compress(text)?;
 
@@ -200,6 +221,10 @@ impl ALICEText {
     }
 
     /// Decompress bytes to text (auto-detects v1 or v2 format)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is invalid or decompression fails.
     pub fn decompress(&self, data: &[u8]) -> Result<String> {
         // Check version byte to determine format
         if data.len() >= 10 && data[8] >= 2 {
@@ -212,6 +237,14 @@ impl ALICEText {
     }
 
     /// Compress text and write to writer
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if compression or writing to the writer fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if compression succeeds but no stats are recorded (should never happen).
     pub fn compress_to<W: Write>(
         &mut self,
         text: &str,
@@ -223,6 +256,10 @@ impl ALICEText {
     }
 
     /// Decompress from reader
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading or decompression fails.
     pub fn decompress_from<R: Read>(&self, reader: &mut R) -> Result<String> {
         let mut data = Vec::new();
         reader.read_to_end(&mut data)?;
@@ -230,11 +267,13 @@ impl ALICEText {
     }
 
     /// Get last compression statistics
+    #[must_use]
     pub fn last_stats(&self) -> Option<&CompressionStats> {
         self.last_stats.as_ref()
     }
 
     /// Estimate compression for text
+    #[must_use]
     pub fn estimate_compression(&self, text: &str) -> EntropyEstimate {
         let estimator = EntropyEstimator::new();
         estimator.estimate(text)
@@ -248,16 +287,27 @@ impl Default for ALICEText {
 }
 
 /// Convenience function to compress text
+///
+/// # Errors
+///
+/// Returns an error if the underlying compression fails.
 pub fn compress(text: &str, mode: EncodingMode) -> Result<Vec<u8>> {
     let mut alice = ALICEText::new(mode);
     alice.compress(text)
 }
 
 /// Convenience function to decompress bytes
+///
+/// # Errors
+///
+/// Returns an error if the data is invalid or decompression fails.
 pub fn decompress(data: &[u8]) -> Result<String> {
     let alice = ALICEText::default();
     alice.decompress(data)
 }
+
+#[cfg(feature = "ffi")]
+pub mod ffi;
 
 #[cfg(feature = "font")]
 pub mod font_bridge;
