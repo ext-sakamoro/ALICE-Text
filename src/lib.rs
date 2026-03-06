@@ -75,6 +75,9 @@ pub mod query_engine;
 // Game dialogue compression and localization
 pub mod dialogue;
 
+// Unicode normalization
+pub mod unicode_norm;
+
 pub use arithmetic_coder::{ArithmeticDecoder, ArithmeticEncoder};
 pub use entropy_estimator::{EntropyEstimate, EntropyEstimator};
 pub use exception_decoder::ExceptionDecoder;
@@ -101,6 +104,10 @@ pub use format_v3::{
 pub use query_engine::{
     compress_v3, decompress_v3, BufferSource, ColumnStats, FileStats, MmapSource, Op, QueryBuilder,
     QueryEngine, QueryResult, QueryRow, QuerySource,
+};
+
+pub use unicode_norm::{
+    is_ascii_only, is_combining, is_normalized, strip_accents, to_nfc, to_nfd, NormForm,
 };
 
 pub use dialogue::{
