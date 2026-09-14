@@ -311,23 +311,8 @@ impl ExceptionEncoder {
 
         // Write matches
         for mat in &encoded.pattern_matches {
-            // Pattern type as u8
-            let pt = match mat.pattern_type {
-                crate::pattern_learner::PatternType::Timestamp => 0u8,
-                crate::pattern_learner::PatternType::Date => 1,
-                crate::pattern_learner::PatternType::Time => 2,
-                crate::pattern_learner::PatternType::IPv4 => 3,
-                crate::pattern_learner::PatternType::IPv6 => 4,
-                crate::pattern_learner::PatternType::UUID => 5,
-                crate::pattern_learner::PatternType::LogLevel => 6,
-                crate::pattern_learner::PatternType::Path => 7,
-                crate::pattern_learner::PatternType::URL => 8,
-                crate::pattern_learner::PatternType::Number => 9,
-                crate::pattern_learner::PatternType::Hex => 10,
-                crate::pattern_learner::PatternType::Email => 11,
-                crate::pattern_learner::PatternType::Custom => 12,
-            };
-            payload.push(pt);
+            // Pattern type as u8 (single source: PatternType::to_tag)
+            payload.push(mat.pattern_type.to_tag());
 
             // Start and end positions
             payload.extend_from_slice(&(mat.start as u32).to_le_bytes());

@@ -108,22 +108,8 @@ impl ExceptionDecoder {
                 ));
             }
 
-            // Pattern type
-            let pt = match data[pos] {
-                0 => PatternType::Timestamp,
-                1 => PatternType::Date,
-                2 => PatternType::Time,
-                3 => PatternType::IPv4,
-                4 => PatternType::IPv6,
-                5 => PatternType::UUID,
-                6 => PatternType::LogLevel,
-                7 => PatternType::Path,
-                8 => PatternType::URL,
-                9 => PatternType::Number,
-                10 => PatternType::Hex,
-                11 => PatternType::Email,
-                _ => PatternType::Custom,
-            };
+            // Pattern type (single source: PatternType::from_tag, unknown tag = corrupt input)
+            let pt = PatternType::from_tag(data[pos])?;
             pos += 1;
 
             // Start and end
@@ -287,6 +273,42 @@ mod tests {
         let invalid_data = vec![0u8; 50]; // Invalid magic
 
         assert!(!decoder.verify(&invalid_data).unwrap());
+    }
+
+    #[test]
+    fn corrupt_pattern_tag_is_rejected_not_mapped_to_custom() {
+        let decoder = ExceptionDecoder::new();
+        // match_count = 1, then one record whose tag byte (0xC8) is outside 0..=12
+        let mut payload = 1u32.to_le_bytes().to_vec();
+        payload.push(0xC8);
+        payload.extend_from_slice(&0u32.to_le_bytes()); // start
+        payload.extend_from_slice(&4u32.to_le_bytes()); // end
+        payload.extend_from_slice(&4u16.to_le_bytes()); // text_len
+        payload.extend_from_slice(b"text");
+        payload.extend_from_slice(&0u32.to_le_bytes()); // trailing remainder length
+
+        match decoder.parse_binary_payload(&payload) {
+            Err(crate::ALICETextError::InvalidPatternTag(0xC8)) => {}
+            other => panic!("expected InvalidPatternTag(0xC8), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn valid_pattern_tags_all_parse() {
+        use crate::pattern_learner::PatternType;
+        let decoder = ExceptionDecoder::new();
+        for pt in PatternType::ALL {
+            let mut payload = 1u32.to_le_bytes().to_vec();
+            payload.push(pt.to_tag());
+            payload.extend_from_slice(&0u32.to_le_bytes());
+            payload.extend_from_slice(&1u32.to_le_bytes());
+            payload.extend_from_slice(&1u16.to_le_bytes());
+            payload.push(b'x');
+            payload.extend_from_slice(&0u32.to_le_bytes());
+            let (matches, _) = decoder.parse_binary_payload(&payload).unwrap();
+            assert_eq!(matches.len(), 1);
+            assert_eq!(matches[0].pattern_type, pt);
+        }
     }
 
     #[test]

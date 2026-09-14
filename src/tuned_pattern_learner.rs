@@ -8,54 +8,9 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-/// Pattern types (same as original, but optimized for u8 storage)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[repr(u8)]
-pub enum PatternType {
-    Timestamp = 0,
-    Date = 1,
-    Time = 2,
-    IPv4 = 3,
-    IPv6 = 4,
-    UUID = 5,
-    LogLevel = 6,
-    Path = 7,
-    URL = 8,
-    Number = 9,
-    Hex = 10,
-    Email = 11,
-    Custom = 12,
-}
-
-impl PatternType {
-    /// Convert to u8 for compact storage
-    #[inline]
-    #[must_use]
-    pub const fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    /// Convert from u8
-    #[inline]
-    #[must_use]
-    pub const fn from_u8(v: u8) -> Self {
-        match v {
-            0 => Self::Timestamp,
-            1 => Self::Date,
-            2 => Self::Time,
-            3 => Self::IPv4,
-            4 => Self::IPv6,
-            5 => Self::UUID,
-            6 => Self::LogLevel,
-            7 => Self::Path,
-            8 => Self::URL,
-            9 => Self::Number,
-            10 => Self::Hex,
-            11 => Self::Email,
-            _ => Self::Custom,
-        }
-    }
-}
+/// Pattern types — re-exported from [`crate::pattern_learner`] so the
+/// variant set and the `u8` wire tag have a single definition.
+pub use crate::pattern_learner::PatternType;
 
 /// Zero-copy pattern match using Cow
 #[derive(Debug, Clone)]
@@ -392,12 +347,13 @@ mod tests {
     #[test]
     fn test_pattern_type_u8_roundtrip() {
         for i in 0..=12u8 {
-            let pt = PatternType::from_u8(i);
-            assert_eq!(pt.as_u8(), i);
+            let pt = PatternType::from_tag(i).unwrap();
+            assert_eq!(pt.to_tag(), i);
+            assert_eq!(pt as u8, i, "repr(u8) discriminant must equal wire tag");
         }
-        // Out-of-range values map to Custom
-        assert_eq!(PatternType::from_u8(100), PatternType::Custom);
-        assert_eq!(PatternType::from_u8(255), PatternType::Custom);
+        // Out-of-range values are rejected, never silently mapped to Custom
+        assert!(PatternType::from_tag(100).is_err());
+        assert!(PatternType::from_tag(255).is_err());
     }
 
     #[test]

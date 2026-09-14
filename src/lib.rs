@@ -139,6 +139,9 @@ pub enum ALICETextError {
     #[error("Invalid version: {0}.{1}")]
     InvalidVersion(u8, u8),
 
+    #[error("Invalid pattern tag: {0} (expected 0..=12)")]
+    InvalidPatternTag(u8),
+
     #[error("Decompression error: {0}")]
     DecompressionError(String),
 

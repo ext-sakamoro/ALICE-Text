@@ -9,37 +9,92 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 
 /// Types of patterns that can be detected
+///
+/// `#[repr(u8)]` with explicit discriminants: the discriminant *is* the
+/// stable wire tag written by the exception / tuned encoders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum PatternType {
     /// ISO timestamp (2024-01-15 10:30:45)
-    Timestamp,
+    Timestamp = 0,
     /// Date only (2024-01-15)
-    Date,
+    Date = 1,
     /// Time only (10:30:45)
-    Time,
+    Time = 2,
     /// IPv4 address (192.168.1.100)
-    IPv4,
+    IPv4 = 3,
     /// IPv6 address
-    IPv6,
+    IPv6 = 4,
     /// UUID (550e8400-e29b-41d4-a716-446655440000)
-    UUID,
+    UUID = 5,
     /// Log level (INFO, WARN, ERROR, DEBUG)
-    LogLevel,
+    LogLevel = 6,
     /// File path (/var/log/app.log)
-    Path,
+    Path = 7,
     /// URL (<https://example.com>)
-    URL,
+    URL = 8,
     /// Numeric value
-    Number,
+    Number = 9,
     /// Hexadecimal value
-    Hex,
+    Hex = 10,
     /// Email address
-    Email,
+    Email = 11,
     /// Custom pattern
-    Custom,
+    Custom = 12,
 }
 
 impl PatternType {
+    /// Every variant, in wire-tag order (`to_tag(ALL[i]) == i`).
+    pub const ALL: [Self; 13] = [
+        Self::Timestamp,
+        Self::Date,
+        Self::Time,
+        Self::IPv4,
+        Self::IPv6,
+        Self::UUID,
+        Self::LogLevel,
+        Self::Path,
+        Self::URL,
+        Self::Number,
+        Self::Hex,
+        Self::Email,
+        Self::Custom,
+    ];
+
+    /// Stable wire tag used by the exception / tuned encoders and decoders.
+    ///
+    /// Single source of truth for the on-disk mapping (the `repr(u8)`
+    /// discriminant); encoders and decoders must not carry their own tables.
+    #[must_use]
+    pub const fn to_tag(self) -> u8 {
+        self as u8
+    }
+
+    /// Inverse of [`to_tag`](Self::to_tag).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::ALICETextError::InvalidPatternTag`] for any tag outside
+    /// `0..=12`; corrupt input is never silently mapped to `Custom`.
+    pub const fn from_tag(tag: u8) -> crate::Result<Self> {
+        Ok(match tag {
+            0 => Self::Timestamp,
+            1 => Self::Date,
+            2 => Self::Time,
+            3 => Self::IPv4,
+            4 => Self::IPv6,
+            5 => Self::UUID,
+            6 => Self::LogLevel,
+            7 => Self::Path,
+            8 => Self::URL,
+            9 => Self::Number,
+            10 => Self::Hex,
+            11 => Self::Email,
+            12 => Self::Custom,
+            other => return Err(crate::ALICETextError::InvalidPatternTag(other)),
+        })
+    }
+
     /// Get the regex pattern for this type
     #[must_use]
     pub const fn regex_pattern(&self) -> &'static str {
@@ -331,6 +386,38 @@ impl Default for PatternLearner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pattern_type_tag_roundtrip_all_variants() {
+        for (i, pt) in PatternType::ALL.iter().enumerate() {
+            let tag = pt.to_tag();
+            assert_eq!(
+                usize::from(tag),
+                i,
+                "ALL order must equal tag order for {pt:?}"
+            );
+            assert_eq!(PatternType::from_tag(tag).unwrap(), *pt);
+        }
+    }
+
+    #[test]
+    fn pattern_type_tags_are_unique_and_dense() {
+        let mut tags: Vec<u8> = PatternType::ALL.iter().map(|p| p.to_tag()).collect();
+        tags.sort_unstable();
+        tags.dedup();
+        assert_eq!(tags.len(), PatternType::ALL.len());
+        assert_eq!(tags, (0..PatternType::ALL.len() as u8).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn pattern_type_from_unknown_tag_is_error_not_custom() {
+        for tag in PatternType::ALL.len() as u8..=u8::MAX {
+            match PatternType::from_tag(tag) {
+                Err(crate::ALICETextError::InvalidPatternTag(t)) => assert_eq!(t, tag),
+                other => panic!("tag {tag}: expected InvalidPatternTag, got {other:?}"),
+            }
+        }
+    }
 
     #[test]
     fn test_pattern_detection() {
