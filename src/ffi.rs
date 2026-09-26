@@ -412,7 +412,9 @@ pub unsafe extern "C" fn alice_text_string_free(s: *mut c_char) {
 /// Get library version string. Returns a static null-terminated string.
 #[no_mangle]
 pub extern "C" fn alice_text_version() -> *const c_char {
-    c"1.0.0".as_ptr()
+    // 版数は Cargo.toml から取る (literal は bump 時に drift して host に嘘を返す)
+    const VERSION_C: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
+    VERSION_C.as_ptr().cast()
 }
 
 // ============================================================================
@@ -558,7 +560,8 @@ mod tests {
         let v = alice_text_version();
         assert!(!v.is_null());
         let version = unsafe { CStr::from_ptr(v) }.to_str().unwrap();
-        assert_eq!(version, "1.0.0");
+        // FFI が返す版数は Cargo.toml の version と常に一致する
+        assert_eq!(version, env!("CARGO_PKG_VERSION"));
     }
 
     #[test]

@@ -15,7 +15,7 @@ use std::time::Instant;
 #[derive(Parser)]
 #[command(name = "alice-text")]
 #[command(author = "Moroya Sakamoto")]
-#[command(version = "1.0.0")]
+#[command(version)] // 値を書かない = CARGO_PKG_VERSION が入る (literal は bump で drift)
 #[command(about = "Exception-based text compression - Send only surprises, not predictions")]
 #[command(long_about = r#"
 ALICE-Text: Exception-based Text Compression
