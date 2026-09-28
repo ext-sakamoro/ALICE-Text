@@ -259,6 +259,16 @@ for row in &result.rows {
 
 テスト環境: Apple M3 (arm64), macOS, Rust 1.84.0
 
+実行は `cargo bench` `target-cpu=native` は意図的に `.cargo/config.toml` に置いていない CPU 世代の違う CI runner では rustc 自身が SIGILL で落ち、commit と無関係に CI の red / green が揺れるため native が要るのはベンチだけなので、実行時に opt-in する:
+
+```bash
+RUSTFLAGS="-C target-cpu=native" cargo bench
+# 環境変数を触らない場合:
+cargo bench --config 'build.rustflags=["-C","target-cpu=native"]'
+```
+
+なお `.cargo/config.local.toml` は cargo が読まない 置いても無言で無視される
+
 ### ランダムログデータ
 
 | 行数 | サイズ | ALICE-Text | gzip -9 | zstd -19 |
