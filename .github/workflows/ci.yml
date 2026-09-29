@@ -10,6 +10,38 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check:
+    name: Check (default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Create optional sibling stubs
+        run: bash .github/stub-siblings.sh
+      - run: cargo check --all-targets
+
+  test:
+    name: Test (default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Create optional sibling stubs
+        run: bash .github/stub-siblings.sh
+      - run: cargo test
+
+  clippy:
+    name: Clippy (-D warnings, default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Create optional sibling stubs
+        run: bash .github/stub-siblings.sh
+      - run: cargo clippy --all-targets -- -D warnings
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
