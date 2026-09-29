@@ -327,6 +327,16 @@ mod tests {
         assert_eq!(matches[0].pattern_type, PatternType::Timestamp);
     }
 
+    /// 大きい入力で match が取れることを見る
+    ///
+    /// ⚠️ 時間は測るが **合否には使わない** `tuned_compressor::tests::test_large_text`
+    /// と同じ理由で、2026-09-29 に `assert!(elapsed.as_millis() < 100)` を外した
+    /// (そちらは CI 初回で runner 実測 779ms / 閾値 500ms の red になった
+    ///  こちらはたまたま通っていたが、同じく機械の速度差で合否が変わる形)
+    ///
+    /// 性能は wall-clock でなく命令数で gate する
+    /// ([[feedback_deterministic_bench_instruction_count]])
+    /// この test の oracle は `!matches.is_empty()` であって時間ではない
     #[test]
     fn test_large_text_performance() {
         let learner = TunedPatternLearner::new();
@@ -339,9 +349,8 @@ mod tests {
         let matches = learner.find_matches(&large_text);
         let elapsed = start.elapsed();
 
-        // Should complete quickly (< 100ms for 1000 lines)
-        assert!(elapsed.as_millis() < 100, "Took too long: {elapsed:?}");
         assert!(!matches.is_empty());
+        println!("1000 lines: {} matches in {elapsed:?}", matches.len());
     }
 
     #[test]
