@@ -113,7 +113,7 @@ impl TimestampColumn {
     /// Try to parse a timestamp string into milliseconds
     /// Uses cached format if available for O(1) parsing after first success
     /// Also captures timezone offset for the base timestamp
-    fn parse_timestamp(&mut self, s: &str) -> Option<i64> {
+    fn parse_timestamp(&mut self, s: &str) -> Option<(i64, Option<i32>)> {
         use chrono::DateTime;
 
         // Try cached format first (fast path)
@@ -121,18 +121,14 @@ impl TimestampColumn {
             Some(CachedFormatType::Naive(idx)) => {
                 if let Some(fmt) = TIMESTAMP_FORMATS_NAIVE.get(idx) {
                     if let Ok(dt) = NaiveDateTime::parse_from_str(s, fmt) {
-                        return Some(dt.and_utc().timestamp_millis());
+                        return Some((dt.and_utc().timestamp_millis(), None));
                     }
                 }
             }
             Some(CachedFormatType::Tz(idx)) => {
                 if let Some(fmt) = TIMESTAMP_FORMATS_TZ.get(idx) {
                     if let Ok(dt) = DateTime::parse_from_str(s, fmt) {
-                        // Capture offset for base timestamp
-                        if self.base_offset_secs.is_none() {
-                            self.base_offset_secs = Some(dt.offset().local_minus_utc());
-                        }
-                        return Some(dt.timestamp_millis());
+                        return Some((dt.timestamp_millis(), Some(dt.offset().local_minus_utc())));
                     }
                 }
             }
@@ -143,11 +139,7 @@ impl TimestampColumn {
         for (idx, fmt) in TIMESTAMP_FORMATS_TZ.iter().enumerate() {
             if let Ok(dt) = DateTime::parse_from_str(s, fmt) {
                 self.cached_format_idx = Some(CachedFormatType::Tz(idx));
-                // Capture offset for base timestamp
-                if self.base_offset_secs.is_none() {
-                    self.base_offset_secs = Some(dt.offset().local_minus_utc());
-                }
-                return Some(dt.timestamp_millis());
+                return Some((dt.timestamp_millis(), Some(dt.offset().local_minus_utc())));
             }
         }
 
@@ -155,7 +147,7 @@ impl TimestampColumn {
         for (idx, fmt) in TIMESTAMP_FORMATS_NAIVE.iter().enumerate() {
             if let Ok(dt) = NaiveDateTime::parse_from_str(s, fmt) {
                 self.cached_format_idx = Some(CachedFormatType::Naive(idx));
-                return Some(dt.and_utc().timestamp_millis());
+                return Some((dt.and_utc().timestamp_millis(), None));
             }
         }
 
@@ -164,28 +156,38 @@ impl TimestampColumn {
 
     /// Add a timestamp, using delta encoding if possible
     /// Returns (`is_delta`, index) where index is into deltas or raw array
+    ///
+    /// A timestamp is delta encoded only when [`Self::get_delta`] renders it
+    /// back to exactly `text` (the rendering follows the base timestamp's form
+    /// and offset); any other spelling (fractional seconds, another offset or
+    /// form than the base) is stored as a raw string.
     pub fn add(&mut self, text: &str) -> (bool, usize) {
-        if let Some(ts_ms) = self.parse_timestamp(text) {
+        if let Some((ts_ms, offset)) = self.parse_timestamp(text) {
             let delta_idx = self.deltas.len();
             if self.base_ms.is_none() {
-                // First timestamp: store as base
+                // First timestamp: becomes the base if it renders back to itself
                 self.base = Some(text.to_string());
-                self.base_ms = Some(ts_ms);
-                self.last_ms = ts_ms;
-                self.deltas.push(0); // Delta from self is 0
-            } else {
+                self.base_offset_secs = offset;
+                if self.render(ts_ms).as_deref() == Some(text) {
+                    self.base_ms = Some(ts_ms);
+                    self.last_ms = ts_ms;
+                    self.deltas.push(0); // Delta from self is 0
+                    return (true, delta_idx);
+                }
+                self.base = None;
+                self.base_offset_secs = None;
+            } else if self.render(ts_ms).as_deref() == Some(text) {
                 // Subsequent: store delta from previous (O(1) now)
                 let delta = ts_ms - self.last_ms;
                 self.last_ms = ts_ms;
                 self.deltas.push(delta);
+                return (true, delta_idx);
             }
-            (true, delta_idx)
-        } else {
-            // Can't parse: store as raw string
-            let raw_idx = self.raw.len();
-            self.raw.push(text.to_string());
-            (false, raw_idx)
         }
+        // Can't parse, or the parsed value does not render back to `text`
+        let raw_idx = self.raw.len();
+        self.raw.push(text.to_string());
+        (false, raw_idx)
     }
 
     /// Precompute prefix sums for O(1) timestamp lookup
@@ -205,10 +207,14 @@ impl TimestampColumn {
     /// Get delta-encoded timestamp by index (O(1) with precomputed prefix sums)
     #[must_use]
     pub fn get_delta(&self, delta_idx: usize, prefix_sums: &[i64]) -> Option<String> {
+        self.render(*prefix_sums.get(delta_idx)?)
+    }
+
+    /// Text of the timestamp at `total_ms`, in the form of the base timestamp
+    fn render(&self, total_ms: i64) -> Option<String> {
         use chrono::FixedOffset;
 
         let base_str = self.base.as_ref()?;
-        let total_ms = *prefix_sums.get(delta_idx)?;
 
         // Reconstruct DateTime from milliseconds
         let dt_utc = chrono::DateTime::from_timestamp_millis(total_ms)?;
@@ -408,7 +414,20 @@ impl ColumnarPayload {
         tokens
     }
 
+    /// Stores `text` verbatim in the `others` column
+    fn push_other(&mut self, text: &str) -> (u8, u32) {
+        self.others.push(text.to_string());
+        (11u8, (self.others.len() - 1) as u32)
+    }
+
     /// Add a match to the appropriate column
+    ///
+    /// A typed column (number, IPv4 / IPv6, UUID, log level, date, time,
+    /// delta-encoded timestamp) holds a parsed value, so it is used only when
+    /// that value formats back to exactly `text`. Any other spelling of the
+    /// same value (`007`, `1.050`, `WARNING`, an upper-case UUID, a compressed
+    /// or expanded IPv6 form, …) is stored as a string, so restoring is
+    /// lossless.
     pub fn add_match(&mut self, pattern_type: PatternType, text: &str) {
         let (col_type, col_idx) = match pattern_type {
             PatternType::Timestamp => {
@@ -420,26 +439,36 @@ impl ColumnarPayload {
                     (13u8, idx as u32) // Raw string: col_type 13
                 }
             }
-            PatternType::IPv4 => {
-                let ip_u32 = parse_ipv4(text).unwrap_or(0);
-                self.ipv4_addrs.push(ip_u32);
-                (1u8, (self.ipv4_addrs.len() - 1) as u32)
-            }
+            PatternType::IPv4 => match parse_ipv4(text) {
+                Some(ip) if format_ipv4(ip) == text => {
+                    self.ipv4_addrs.push(ip);
+                    (1u8, (self.ipv4_addrs.len() - 1) as u32)
+                }
+                _ => self.push_other(text),
+            },
             PatternType::LogLevel => {
                 let level = LogLevel::parse_level(text);
-                self.log_levels.push(level as u8);
-                (2u8, (self.log_levels.len() - 1) as u32)
+                if level.to_str() == text {
+                    self.log_levels.push(level as u8);
+                    (2u8, (self.log_levels.len() - 1) as u32)
+                } else {
+                    self.push_other(text)
+                }
             }
-            PatternType::Number => {
-                let num = text.parse::<f64>().unwrap_or(0.0);
-                self.numbers.push(num);
-                (3u8, (self.numbers.len() - 1) as u32)
-            }
-            PatternType::UUID => {
-                let uuid = parse_uuid(text).unwrap_or(0);
-                self.uuids.push(uuid);
-                (4u8, (self.uuids.len() - 1) as u32)
-            }
+            PatternType::Number => match text.parse::<f64>() {
+                Ok(num) if format_number(num) == text => {
+                    self.numbers.push(num);
+                    (3u8, (self.numbers.len() - 1) as u32)
+                }
+                _ => self.push_other(text),
+            },
+            PatternType::UUID => match parse_uuid(text) {
+                Some(uuid) if format_uuid(uuid) == text => {
+                    self.uuids.push(uuid);
+                    (4u8, (self.uuids.len() - 1) as u32)
+                }
+                _ => self.push_other(text),
+            },
             PatternType::Email => {
                 self.emails.push(text.to_string());
                 (5u8, (self.emails.len() - 1) as u32)
@@ -454,7 +483,9 @@ impl ColumnarPayload {
             }
             PatternType::Date => {
                 // Try to parse as epoch days
-                if let Some(days) = parse_date_to_days(text) {
+                if let Some(days) =
+                    parse_date_to_days(text).filter(|&d| format_date_from_days(d) == text)
+                {
                     self.date_days.push(days);
                     (8u8, (self.date_days.len() - 1) as u32)
                 } else {
@@ -465,7 +496,8 @@ impl ColumnarPayload {
             }
             PatternType::Time => {
                 // Try to parse as milliseconds from midnight
-                if let Some(ms) = parse_time_to_ms(text) {
+                if let Some(ms) = parse_time_to_ms(text).filter(|&m| format_time_from_ms(m) == text)
+                {
                     self.time_ms.push(ms);
                     (9u8, (self.time_ms.len() - 1) as u32)
                 } else {
@@ -480,7 +512,7 @@ impl ColumnarPayload {
             }
             PatternType::IPv6 => {
                 // Parse IPv6 to u128
-                if let Some(ip) = parse_ipv6(text) {
+                if let Some(ip) = parse_ipv6(text).filter(|&ip| format_ipv6(ip) == text) {
                     self.ipv6_addrs.push(ip);
                     (12u8, (self.ipv6_addrs.len() - 1) as u32)
                 } else {
