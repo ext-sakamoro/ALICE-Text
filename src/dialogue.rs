@@ -447,7 +447,9 @@ impl DialogueCompressor {
             ));
         }
         let compressed_len = u32::from_le_bytes([data[12], data[13], data[14], data[15]]) as usize;
-        if data.len() < 16 + compressed_len {
+        // the declared length must fit in the input after the 16-byte header
+        // (written without `16 + compressed_len`, which overflows on 32-bit)
+        if compressed_len > data.len() - 16 {
             return Err(crate::ALICETextError::DecompressionError(
                 "Truncated data".to_string(),
             ));
@@ -501,7 +503,9 @@ impl DialogueCompressor {
             ));
         }
         let compressed_len = u32::from_le_bytes([data[12], data[13], data[14], data[15]]) as usize;
-        if data.len() < 16 + compressed_len {
+        // the declared length must fit in the input after the 16-byte header
+        // (written without `16 + compressed_len`, which overflows on 32-bit)
+        if compressed_len > data.len() - 16 {
             return Err(crate::ALICETextError::DecompressionError(
                 "Truncated data".to_string(),
             ));

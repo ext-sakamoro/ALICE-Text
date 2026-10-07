@@ -162,6 +162,38 @@ impl ColumnEntry {
     }
 }
 
+/// Reads the compressed bytes of one column
+///
+/// `offset` and `compressed_size` come from the input itself, so they are
+/// checked against the length of the input before the buffer is allocated:
+/// a column must lie entirely inside it. A file written by
+/// [`FormatV3Writer`] always satisfies this (its last column ends exactly at
+/// the end of the file).
+///
+/// # Errors
+///
+/// [`ALICETextError::DecompressionError`] when the column extends past the
+/// end of the input; I/O errors of the reader.
+fn read_column_bytes<R: Read + Seek>(reader: &mut R, entry: &ColumnEntry) -> Result<Vec<u8>> {
+    let input_len = reader.seek(SeekFrom::End(0))?;
+    let fits = entry
+        .offset
+        .checked_add(u64::from(entry.compressed_size))
+        .is_some_and(|end| end <= input_len);
+    if !fits {
+        return Err(ALICETextError::DecompressionError(format!(
+            "column {} (offset {}, {} bytes) exceeds the input ({input_len} bytes)",
+            entry.col_type.name(),
+            entry.offset,
+            entry.compressed_size
+        )));
+    }
+    reader.seek(SeekFrom::Start(entry.offset))?;
+    let mut compressed = vec![0u8; entry.compressed_size as usize];
+    reader.read_exact(&mut compressed)?;
+    Ok(compressed)
+}
+
 /// Format v3 header
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormatV3Header {
@@ -572,9 +604,7 @@ impl FormatV3Writer {
 
         for col_type in column_types {
             if let Some(entry) = metadata.get_column(*col_type) {
-                reader.seek(SeekFrom::Start(entry.offset))?;
-                let mut compressed = vec![0u8; entry.compressed_size as usize];
-                reader.read_exact(&mut compressed)?;
+                let compressed = read_column_bytes(reader, entry)?;
 
                 let decompressed = zstd::stream::decode_all(Cursor::new(&compressed))
                     .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {e}")))?;
@@ -664,9 +694,7 @@ impl FormatV3Writer {
         let mut timestamps_raw = Vec::new();
 
         for entry in &metadata.columns {
-            reader.seek(SeekFrom::Start(entry.offset))?;
-            let mut compressed = vec![0u8; entry.compressed_size as usize];
-            reader.read_exact(&mut compressed)?;
+            let compressed = read_column_bytes(reader, entry)?;
 
             let decompressed = zstd::stream::decode_all(Cursor::new(&compressed))
                 .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {e}")))?;
