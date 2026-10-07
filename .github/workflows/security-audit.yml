@@ -61,7 +61,7 @@ jobs:
       # The database is kept under target/ so it never collides with the
       # cargo-deny database in ~/.cargo/advisory-db.
       - name: Run cargo audit
-        run: cargo audit --db target/advisory-db --deny yanked
+        run: cargo audit --db "$RUNNER_TEMP/advisory-db" --deny yanked
 
   deny:
     name: cargo-deny (licenses + advisories + bans + sources)
