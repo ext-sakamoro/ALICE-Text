@@ -3,6 +3,10 @@
 //! 20 `extern "C"` functions for text compression, dialogue, and entropy estimation.
 //!
 //! Author: Moroya Sakamoto
+//!
+//! Every function returns a sentinel (null / 0) on each failure; the explicit
+//! `match` per error path is kept on purpose instead of `map_or_else` chains.
+#![allow(clippy::option_if_let_else)]
 
 use crate::dialogue::{DialogueEntry, DialogueTable};
 use crate::entropy_estimator::EntropyEstimator;
@@ -15,10 +19,10 @@ use std::os::raw::c_char;
 // Opaque handles
 // ============================================================================
 
-/// Opaque handle to ALICEText compressor
+/// Opaque handle to [`ALICEText`] compressor
 pub type AliceTextHandle = *mut ALICEText;
 
-/// Opaque handle to DialogueTable
+/// Opaque handle to [`DialogueTable`]
 pub type AliceDialogueTableHandle = *mut DialogueTable;
 
 // ============================================================================
@@ -59,14 +63,14 @@ pub struct AliceTextEntropy {
 // World lifecycle
 // ============================================================================
 
-/// Create a new ALICEText compressor instance.
+/// Create a new [`ALICEText`] compressor instance.
 #[no_mangle]
 pub extern "C" fn alice_text_create() -> AliceTextHandle {
     let instance = Box::new(ALICEText::new(EncodingMode::Pattern));
     Box::into_raw(instance)
 }
 
-/// Destroy an ALICEText compressor instance.
+/// Destroy an [`ALICEText`] compressor instance.
 ///
 /// # Safety
 ///
@@ -102,9 +106,8 @@ pub unsafe extern "C" fn alice_text_compress(
     }
     let alice = unsafe { &mut *handle };
     let c_str = unsafe { CStr::from_ptr(text) };
-    let text_str = match c_str.to_str() {
-        Ok(s) => s,
-        Err(_) => return empty,
+    let Ok(text_str) = c_str.to_str() else {
+        return empty;
     };
     match alice.compress(text_str) {
         Ok(mut data) => {
@@ -162,9 +165,8 @@ pub unsafe extern "C" fn alice_text_compress_tuned(
         return empty;
     }
     let c_str = unsafe { CStr::from_ptr(text) };
-    let text_str = match c_str.to_str() {
-        Ok(s) => s,
-        Err(_) => return empty,
+    let Ok(text_str) = c_str.to_str() else {
+        return empty;
     };
     let compression_mode = match mode {
         0 => CompressionMode::Fast,
@@ -249,9 +251,8 @@ pub unsafe extern "C" fn alice_text_estimate_entropy(
         return 0;
     }
     let c_str = unsafe { CStr::from_ptr(text) };
-    let text_str = match c_str.to_str() {
-        Ok(s) => s,
-        Err(_) => return 0,
+    let Ok(text_str) = c_str.to_str() else {
+        return 0;
     };
     let estimator = EntropyEstimator::new();
     let est = estimator.estimate(text_str);
@@ -307,13 +308,11 @@ pub unsafe extern "C" fn alice_text_dialogue_add(
         return 0;
     }
     let table = unsafe { &mut *handle };
-    let speaker_str = match unsafe { CStr::from_ptr(speaker) }.to_str() {
-        Ok(s) => s,
-        Err(_) => return 0,
+    let Ok(speaker_str) = unsafe { CStr::from_ptr(speaker) }.to_str() else {
+        return 0;
     };
-    let text_str = match unsafe { CStr::from_ptr(text) }.to_str() {
-        Ok(s) => s,
-        Err(_) => return 0,
+    let Ok(text_str) = unsafe { CStr::from_ptr(text) }.to_str() else {
+        return 0;
     };
     let speaker_idx = table.speakers.insert(speaker_str);
     table.add(DialogueEntry {
@@ -397,7 +396,7 @@ pub unsafe extern "C" fn alice_text_data_free(data: *mut u8, len: u32) {
 ///
 /// # Safety
 ///
-/// `s` must be a pointer returned by an alice_text FFI function.
+/// `s` must be a pointer returned by an `alice_text` FFI function.
 #[no_mangle]
 pub unsafe extern "C" fn alice_text_string_free(s: *mut c_char) {
     if !s.is_null() {
@@ -411,7 +410,7 @@ pub unsafe extern "C" fn alice_text_string_free(s: *mut c_char) {
 
 /// Get library version string. Returns a static null-terminated string.
 #[no_mangle]
-pub extern "C" fn alice_text_version() -> *const c_char {
+pub const extern "C" fn alice_text_version() -> *const c_char {
     // 版数は Cargo.toml から取る (literal は bump 時に drift して host に嘘を返す)
     const VERSION_C: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
     VERSION_C.as_ptr().cast()
@@ -482,7 +481,7 @@ mod tests {
             compression_ratio: 0.0,
             space_savings: 0.0,
         };
-        let ok = unsafe { alice_text_get_stats(handle, &mut stats) };
+        let ok = unsafe { alice_text_get_stats(handle, std::ptr::addr_of_mut!(stats)) };
         assert_eq!(ok, 1);
         assert!(stats.original_size > 0);
 
@@ -506,7 +505,8 @@ mod tests {
             repetition_score: 0.0,
             is_compressible: 0,
         };
-        let ok = unsafe { alice_text_estimate_entropy(text.as_ptr(), &mut entropy) };
+        let ok =
+            unsafe { alice_text_estimate_entropy(text.as_ptr(), std::ptr::addr_of_mut!(entropy)) };
         assert_eq!(ok, 1);
         assert!(entropy.shannon_entropy > 0.0);
         assert!(entropy.original_size > 0);

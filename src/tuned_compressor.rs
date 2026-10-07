@@ -452,11 +452,10 @@ mod tests {
     /// ⚠️ 時間は測るが **合否には使わない** 2026-09-29 まで
     /// `assert!(compress_time.as_millis() < 500)` が入っていたが、本 repo に
     /// `cargo test` を走らせる CI が無かったため一度も検証されておらず、
-    /// CI を足した初回に runner 実測 779ms で red になった (local の M3 では
+    /// CI を足した初回に runner 実測 779ms で red になった (速い機械では
     /// 通る = **機械の速度差で合否が変わる**)
     ///
-    /// 性能は wall-clock でなく命令数で gate する、が方針
-    /// ([[feedback_deterministic_bench_instruction_count]]) wall-clock を
+    /// 性能は wall-clock でなく命令数で gate する、が方針 wall-clock を
     /// `cargo test` の合否に混ぜると、正しさの CI が runner の気分で赤くなる
     ///
     /// assertion を外しても**正しさの保証は減らない** この test の oracle は

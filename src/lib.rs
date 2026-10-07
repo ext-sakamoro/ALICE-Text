@@ -4,21 +4,31 @@
 //!
 //! Send only surprises, not predictions.
 //!
-//! ALICE-Text is a revolutionary text compression system that uses predictive
-//! coding to achieve high compression ratios for structured text like logs.
-//! Instead of storing all data, it stores only the "exceptions" - tokens that
-//! differ from predictions.
+//! ALICE-Text compresses structured text such as logs by separating what
+//! repeats from what varies. Recognised values (timestamps, dates, IP
+//! addresses, UUIDs, numbers, paths, URLs, e-mail addresses, log levels) are
+//! taken out of each line into typed columns; the rest of the line, its
+//! *skeleton*, keeps numbered placeholders. Skeletons repeat from line to line
+//! and the value columns are delta / binary encoded, so the result compresses
+//! well with Zstd.
 //!
 //! ## Principle
 //!
 //! ```text
-//! Input Text
+//! Input line
 //!     ↓
-//! Prediction Model P(next|context)
+//! Skeleton (values → placeholders) + typed value columns
 //!     ↓
-//! Prediction Success → Information = 0 → Don't send
-//! Prediction Failure → Exception Token → Send
+//! Skeleton seen before → predicted, only the values are new
+//! Skeleton not seen    → exception, the whole skeleton is new
 //! ```
+//!
+//! The compressor itself leaves the repetition of skeletons to Zstd; it does
+//! not keep a model across calls.
+//!
+//! [`law::TextLaw`] keeps the learned skeletons as a law and measures its
+//! exception rate (lines with an unseen skeleton / lines) on actual text; it
+//! judges new text with the rule order of `alice_zip::law::Verdict`.
 //!
 //! ## Example
 //!
@@ -77,6 +87,9 @@ pub mod dialogue;
 
 // Unicode normalization
 pub mod unicode_norm;
+
+// Line-skeleton predictor kept as a law (exception rate as its residual)
+pub mod law;
 
 pub use arithmetic_coder::{ArithmeticDecoder, ArithmeticEncoder};
 pub use entropy_estimator::{EntropyEstimate, EntropyEstimator};
@@ -331,9 +344,12 @@ pub mod voice_bridge;
 #[cfg(feature = "search")]
 pub mod search_bridge;
 
+// pyo3 0.22's #[pymethods] expansion converts the returned PyErr into itself;
+// the conversion is generated code, not written here
 #[cfg(feature = "python")]
+#[allow(clippy::useless_conversion)]
 mod python_bindings {
-    use super::*;
+    use super::{ALICEText, EncodingMode};
     use pyo3::prelude::*;
     use pyo3::types::PyModule;
 
@@ -346,15 +362,16 @@ mod python_bindings {
     impl PyALICEText {
         #[new]
         #[pyo3(signature = (mode = "pattern"))]
-        fn new(mode: &str) -> PyResult<Self> {
-            let mode = match mode {
-                "pattern" => EncodingMode::Pattern,
-                "ngram" => EncodingMode::NGram,
-                _ => EncodingMode::Pattern,
+        fn new(mode: &str) -> Self {
+            // any value other than "ngram" selects the pattern mode
+            let mode = if mode == "ngram" {
+                EncodingMode::NGram
+            } else {
+                EncodingMode::Pattern
             };
-            Ok(Self {
+            Self {
                 inner: ALICEText::new(mode),
-            })
+            }
         }
 
         fn compress(&mut self, py: Python<'_>, text: &str) -> PyResult<Vec<u8>> {

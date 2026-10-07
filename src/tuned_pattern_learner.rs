@@ -335,7 +335,6 @@ mod tests {
     ///  こちらはたまたま通っていたが、同じく機械の速度差で合否が変わる形)
     ///
     /// 性能は wall-clock でなく命令数で gate する
-    /// ([[feedback_deterministic_bench_instruction_count]])
     /// この test の oracle は `!matches.is_empty()` であって時間ではない
     #[test]
     fn test_large_text_performance() {
