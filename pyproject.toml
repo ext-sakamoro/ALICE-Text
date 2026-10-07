@@ -8,9 +8,9 @@ name = "alice-text"
 version = "1.0.0"
 description = "ALICE Exception-Based Text Compression - Send only surprises, not predictions"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "MIT OR Apache-2.0"}
 authors = [
-    {name = "Moroya Sakamoto", email = "sakamoto@example.com"}
+    {name = "Moroya Sakamoto", email = "sakamoro@alicelaw.net"}
 ]
 keywords = [
     "compression",
@@ -26,6 +26,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Rust",
     "Programming Language :: Python :: 3",

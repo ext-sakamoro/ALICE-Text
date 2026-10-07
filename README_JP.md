@@ -215,4 +215,9 @@ scripts/preflight.sh --quick    # static checks, clippy, docs and `cargo test --
 
 ## ライセンス
 
-`Cargo.toml` は `MIT OR Apache-2.0` を宣言し、Apache の条文は [LICENSE-APACHE](LICENSE-APACHE) にある [LICENSE](LICENSE) には Business Source License 1.1 (change license: MIT) の条文が入っており、両者は一致しないので両方の file を読むこと 商標の条件は [TRADEMARK_NOTICE](TRADEMARK_NOTICE)
+次のどちらかを選んで利用できる
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+商標の条件は [TRADEMARK_NOTICE](TRADEMARK_NOTICE)

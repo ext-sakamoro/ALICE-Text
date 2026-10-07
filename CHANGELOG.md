@@ -14,6 +14,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `README_JP.md` (renamed from `README_ja.md`)
 
 ### Changed
+- license files match the `license` field of `Cargo.toml` (`MIT OR Apache-2.0`): `LICENSE` (Business Source License 1.1 text) is replaced by `LICENSE-MIT`; `LICENSE-APACHE` is unchanged; `pyproject.toml` declares `MIT OR Apache-2.0` (and the author address of `Cargo.toml`); README / README_JP / TRADEMARK_NOTICE point to both files, and the module headers of `dialogue` / `font_bridge` no longer say BSL 1.1
 - crate documentation: the principle section describes the implementation (skeleton + typed value columns + Zstd) instead of a next-token prediction model
 - CI: tests on Linux x86_64 / arm64, macOS and Windows with default features and `ffi`, the example and benches compile; clippy pedantic + nursery for default and `ffi,python`; MSRV job; rustdoc `-D warnings`; docs lint on three OS; `scripts/preflight.sh` runs the same commands (`--quick` runs `cargo test --lib`)
 - clippy `pedantic` and `nursery` enabled in `[lints.clippy]`; `ffi` uses `let … else` for the UTF-8 checks and `alice_text_version` is a `const fn`

@@ -8,7 +8,7 @@
 //! - Text shaping with ALICE-Font parameters
 //! - Dialogue table charset extraction for atlas preloading
 //!
-//! License: BSL 1.1
+//! License: MIT OR Apache-2.0
 //! Author: Moroya Sakamoto
 
 use alice_font::atlas::SdfAtlas;

@@ -7,7 +7,7 @@
 //! - Delta-based localization (store only differences from base locale)
 //! - Bincode + Zstd compressed wire format
 //!
-//! License: BSL 1.1
+//! License: MIT OR Apache-2.0
 //! Author: Moroya Sakamoto
 
 use std::collections::HashMap;

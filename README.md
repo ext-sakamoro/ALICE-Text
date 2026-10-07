@@ -249,7 +249,9 @@ scripts/preflight.sh --quick    # static checks, clippy, docs and `cargo test --
 
 ## License
 
-`Cargo.toml` declares `MIT OR Apache-2.0`, with the Apache text in
-[LICENSE-APACHE](LICENSE-APACHE). [LICENSE](LICENSE) contains the text of the
-Business Source License 1.1 (change license: MIT); the two do not agree, so
-read both files. Trademark terms are in [TRADEMARK_NOTICE](TRADEMARK_NOTICE).
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option. Trademark terms are in [TRADEMARK_NOTICE](TRADEMARK_NOTICE).
