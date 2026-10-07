@@ -68,6 +68,7 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 pub mod arithmetic_coder;
+mod bounded_decode;
 pub mod entropy_estimator;
 pub mod exception_decoder;
 pub mod exception_encoder;

@@ -157,6 +157,7 @@ impl TunedCompressor {
         // Step 2: Serialize payload with Bincode
         let serialized = bincode::serialize(&payload)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
+        crate::bounded_decode::check_unrecorded_payload(serialized.len(), "v2 payload")?;
 
         // Step 3: Compress with Zstd
         let compressed =
@@ -238,8 +239,11 @@ impl TunedCompressor {
         let compressed_data = &data[10 + TunedHeader::SIZE..];
 
         // Decompress with Zstd
-        let decompressed = zstd::stream::decode_all(std::io::Cursor::new(compressed_data))
-            .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {e}")))?;
+        let decompressed = crate::bounded_decode::decode(
+            compressed_data,
+            crate::bounded_decode::UNRECORDED_LIMIT,
+            "v2 payload",
+        )?;
 
         // Deserialize with Bincode
         let payload: ColumnarPayload = bincode::deserialize(&decompressed)

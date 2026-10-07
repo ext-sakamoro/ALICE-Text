@@ -190,6 +190,8 @@ Zstd payload: bincode-serialized skeleton tokens and value columns
 
 `ALICEText::decompress` は旧形式 v1 (LZMA) も読む
 
+展開は上限を越えて行わない v3 の各列は展開後サイズを記録し、ちょうどその大きさに展開されなければならない 記録の無い stream (v2、台詞テーブル、以前の版が書いた v3) の上限は 256 MiB で、writer もそれを越える stream は書かない
+
 ## 最小対応 Rust バージョン
 
 Rust 1.87 (`Cargo.toml` の `rust-version`) CI で既定 feature と `ffi` + `python` の library を検査する 1.86 は依存先 `alice-zip` (その `rust-version` が 1.87) が受け付けない 開発と CI は `rust-toolchain.toml` で固定した toolchain を使う

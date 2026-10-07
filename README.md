@@ -218,6 +218,11 @@ Zstd payload: bincode-serialized skeleton tokens and value columns
 
 `ALICEText::decompress` also reads the older v1 format (LZMA).
 
+Decoders never expand a Zstd stream past a limit: each v3 column records its
+decompressed size and must expand to exactly that; streams without a recorded
+size (v2, dialogue tables, v3 files from earlier versions) are limited to
+256 MiB, and the writers refuse to produce a larger one.
+
 ## Minimum supported Rust version
 
 Rust 1.87 (`rust-version` in `Cargo.toml`), checked in CI for the library with

@@ -414,6 +414,7 @@ impl DialogueCompressor {
     pub fn compress_table(&self, table: &DialogueTable) -> crate::Result<Vec<u8>> {
         let serialized = bincode::serialize(table)
             .map_err(|e| crate::ALICETextError::EncodingError(e.to_string()))?;
+        crate::bounded_decode::check_unrecorded_payload(serialized.len(), "dialogue table")?;
         let mut output = Vec::with_capacity(serialized.len() + 12);
         output.extend_from_slice(DIALOGUE_MAGIC);
         output.push(DIALOGUE_VERSION.0);
@@ -454,8 +455,11 @@ impl DialogueCompressor {
                 "Truncated data".to_string(),
             ));
         }
-        let decompressed = zstd::decode_all(&data[16..16 + compressed_len])
-            .map_err(|e| crate::ALICETextError::DecompressionError(e.to_string()))?;
+        let decompressed = crate::bounded_decode::decode(
+            &data[16..16 + compressed_len],
+            crate::bounded_decode::UNRECORDED_LIMIT,
+            "dialogue table",
+        )?;
         let mut table: DialogueTable = bincode::deserialize(&decompressed)
             .map_err(|e| crate::ALICETextError::DecompressionError(e.to_string()))?;
         table.speakers.rebuild_index();
@@ -470,6 +474,7 @@ impl DialogueCompressor {
     pub fn compress_localization(&self, table: &LocalizationTable) -> crate::Result<Vec<u8>> {
         let serialized = bincode::serialize(table)
             .map_err(|e| crate::ALICETextError::EncodingError(e.to_string()))?;
+        crate::bounded_decode::check_unrecorded_payload(serialized.len(), "dialogue table")?;
         let mut output = Vec::with_capacity(serialized.len() + 12);
         output.extend_from_slice(DIALOGUE_MAGIC);
         output.push(DIALOGUE_VERSION.0);
@@ -510,8 +515,11 @@ impl DialogueCompressor {
                 "Truncated data".to_string(),
             ));
         }
-        let decompressed = zstd::decode_all(&data[16..16 + compressed_len])
-            .map_err(|e| crate::ALICETextError::DecompressionError(e.to_string()))?;
+        let decompressed = crate::bounded_decode::decode(
+            &data[16..16 + compressed_len],
+            crate::bounded_decode::UNRECORDED_LIMIT,
+            "localization table",
+        )?;
         let mut table: LocalizationTable = bincode::deserialize(&decompressed)
             .map_err(|e| crate::ALICETextError::DecompressionError(e.to_string()))?;
         table.base_table.speakers.rebuild_index();

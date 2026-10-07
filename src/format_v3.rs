@@ -194,6 +194,27 @@ fn read_column_bytes<R: Read + Seek>(reader: &mut R, entry: &ColumnEntry) -> Res
     Ok(compressed)
 }
 
+/// Decompresses one column within its recorded size
+///
+/// A column written by this version records its decompressed size and must
+/// expand to exactly that. A recorded size of 0 comes from earlier versions,
+/// which did not record it (a bincode column is never empty); those columns
+/// are decoded under the fixed limit for streams without a recorded size
+/// (256 MiB, see `bounded_decode`).
+///
+/// # Errors
+///
+/// [`ALICETextError::DecompressionError`] when the column expands past its
+/// limit or to a size other than the recorded one.
+fn decode_column(compressed: &[u8], entry: &ColumnEntry) -> Result<Vec<u8>> {
+    let what = format!("column {}", entry.col_type.name());
+    if entry.uncompressed_size == 0 {
+        crate::bounded_decode::decode(compressed, crate::bounded_decode::UNRECORDED_LIMIT, &what)
+    } else {
+        crate::bounded_decode::decode_exact(compressed, u64::from(entry.uncompressed_size), &what)
+    }
+}
+
 /// Format v3 header
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormatV3Header {
@@ -355,7 +376,8 @@ impl FormatV3Writer {
         let row_count = text.lines().count() as u64;
 
         // Prepare columns for individual compression
-        let mut column_data: Vec<(ColumnType, Vec<u8>, u32)> = Vec::new();
+        // (type, compressed bytes, decompressed size, row count)
+        let mut column_data: Vec<(ColumnType, Vec<u8>, u32, u32)> = Vec::new();
 
         // Helper to compress and add column
         let zstd_level = self.level.zstd_level();
@@ -364,9 +386,17 @@ impl FormatV3Writer {
                 || col_type == ColumnType::Skeleton
                 || col_type == ColumnType::PlaceholderMap
             {
+                // recorded in the column entry; readers decode no further
+                let uncompressed = u32::try_from(data.len()).map_err(|_| {
+                    ALICETextError::EncodingError(format!(
+                        "column {} of {} bytes exceeds the u32 size field",
+                        col_type.name(),
+                        data.len()
+                    ))
+                })?;
                 let compressed = zstd::stream::encode_all(Cursor::new(data), zstd_level)
                     .map_err(|e| ALICETextError::EncodingError(format!("Zstd error: {e}")))?;
-                column_data.push((col_type, compressed, count));
+                column_data.push((col_type, compressed, uncompressed, count));
             }
             Ok(())
         };
@@ -530,12 +560,12 @@ impl FormatV3Writer {
         let mut current_offset = data_start as u64;
         let mut entries: Vec<ColumnEntry> = Vec::new();
 
-        for (col_type, compressed, count) in &column_data {
+        for (col_type, compressed, uncompressed, count) in &column_data {
             entries.push(ColumnEntry {
                 col_type: *col_type,
                 offset: current_offset,
                 compressed_size: compressed.len() as u32,
-                uncompressed_size: 0, // We don't track this for simplicity
+                uncompressed_size: *uncompressed,
                 row_count: *count,
             });
             current_offset += compressed.len() as u64;
@@ -568,7 +598,7 @@ impl FormatV3Writer {
         }
 
         // Write column data
-        for (_, compressed, _) in column_data {
+        for (_, compressed, _, _) in column_data {
             output.extend_from_slice(&compressed);
         }
 
@@ -606,8 +636,7 @@ impl FormatV3Writer {
             if let Some(entry) = metadata.get_column(*col_type) {
                 let compressed = read_column_bytes(reader, entry)?;
 
-                let decompressed = zstd::stream::decode_all(Cursor::new(&compressed))
-                    .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {e}")))?;
+                let decompressed = decode_column(&compressed, entry)?;
 
                 match col_type {
                     ColumnType::LogLevels => {
@@ -696,8 +725,7 @@ impl FormatV3Writer {
         for entry in &metadata.columns {
             let compressed = read_column_bytes(reader, entry)?;
 
-            let decompressed = zstd::stream::decode_all(Cursor::new(&compressed))
-                .map_err(|e| ALICETextError::DecompressionError(format!("Zstd error: {e}")))?;
+            let decompressed = decode_column(&compressed, entry)?;
 
             match entry.col_type {
                 ColumnType::Skeleton => {
