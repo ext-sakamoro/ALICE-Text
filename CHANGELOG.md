@@ -26,6 +26,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - unused dependencies `log` and `bytemuck`
 
 ### Fixed
+- `cargo bench` did not compile: the bench profile inherited `panic = "abort"` from the release profile while the bench target is built with unwinding; `[profile.bench] panic = "unwind"` builds the dependencies of benches with unwinding (cargo prints that the setting is ignored for the bench target itself)
 - `.cargo/config.toml` から `target-cpu=native` を外した (`[build]` と `[target.*]` 3 つの計 4 箇所) CI runner の CPU 世代に依存して rustc 自身が SIGILL で落ちるため (2026-09-28 に ALICE-LLM の rustdoc job で実測、run 36431060432) commit と無関係に red / green が揺れる native が要るのは bench だけなので、local の opt-in を `RUSTFLAGS="-C target-cpu=native" cargo bench` と `cargo bench --config 'build.rustflags=["-C","target-cpu=native"]'` の 2 経路に集約 (README / README_JP に記載) `.cargo/config.local.toml` は cargo が自動では読まないので使えない (2026-09-29 実測) 同じ方針を ALICE-LLM / ALICE-View と揃えた
 - Exception decoder rejected nothing: any pattern tag outside `0..=12` was silently decoded as `Custom`; it now returns `ALICETextError::InvalidPatternTag(u8)`
 - Encoder / decoder / tuned learner each carried a hand-copied tag table (4 copies); replaced by the single mapping above, guarded by exhaustive round-trip tests (13 variants, tags 13..=255 rejected)

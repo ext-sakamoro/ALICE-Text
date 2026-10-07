@@ -99,3 +99,8 @@ panic = "abort"     # パニック時の巻き戻しコード削除（高速化�
 strip = true        # デバッグシンボル削除
 debug = false       # デバッグ情報を含めない
 rpath = false
+
+# benches inherit the release profile; the bench target itself is always
+# built with unwinding, so its dependencies must not be built with `abort`
+[profile.bench]
+panic = "unwind"
