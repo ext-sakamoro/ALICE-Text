@@ -16,7 +16,7 @@
 # `alice-blockchain` は `signature::{KeyPair, PublicKey, Signature}` を
 # **無条件に**使い、`tampered_*_breaks_verify` 系の test が実 Ed25519 の
 # 署名検証に依存する そこで stub を置くと「暗号的に無効な test double」で
-# CI が緑になるので、read-only deploy key で実 clone している (canonical 罠 #21)
+# CI が緑になるので、read-only deploy key で実 clone している
 #
 # **判定軸は「その dep が既定 build で compile されるか」** であって、
 # private かどうかでも暗号かどうかでもない

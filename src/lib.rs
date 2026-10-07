@@ -344,10 +344,7 @@ pub mod voice_bridge;
 #[cfg(feature = "search")]
 pub mod search_bridge;
 
-// pyo3 0.22's #[pymethods] expansion converts the returned PyErr into itself;
-// the conversion is generated code, not written here
 #[cfg(feature = "python")]
-#[allow(clippy::useless_conversion)]
 mod python_bindings {
     use super::{ALICEText, EncodingMode};
     use pyo3::prelude::*;
@@ -377,14 +374,14 @@ mod python_bindings {
         fn compress(&mut self, py: Python<'_>, text: &str) -> PyResult<Vec<u8>> {
             let text_owned = text.to_owned();
             let inner = &mut self.inner;
-            py.allow_threads(|| inner.compress(&text_owned))
+            py.detach(|| inner.compress(&text_owned))
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         }
 
         fn decompress(&self, py: Python<'_>, data: &[u8]) -> PyResult<String> {
             let data_owned = data.to_vec();
             let inner = &self.inner;
-            py.allow_threads(|| inner.decompress(&data_owned))
+            py.detach(|| inner.decompress(&data_owned))
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         }
     }

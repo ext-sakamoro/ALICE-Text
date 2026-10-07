@@ -1,0 +1,99 @@
+name: Security & Hygiene
+
+# - RustSec advisories (weekly and on dependency changes)
+# - dependency licenses / sources (cargo-deny)
+# - unused dependencies (cargo-machete)
+# - stubs left in production code (todo! / unimplemented! / panic!(STUB) / dbg!)
+#
+# scripts/preflight.sh runs the same commands with the same arguments.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/**'
+      - 'benches/**'
+      - 'fuzz/Cargo.toml'
+      - 'deny.toml'
+      - '.github/workflows/security-audit.yml'
+      - 'scripts/stub_guard.sh'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/**'
+      - 'benches/**'
+      - 'fuzz/Cargo.toml'
+      - 'deny.toml'
+      - '.github/workflows/security-audit.yml'
+      - 'scripts/stub_guard.sh'
+  schedule:
+    # every Monday 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: "5"
+
+jobs:
+  audit:
+    name: cargo audit (RustSec advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Create optional sibling stubs
+        run: bash .github/stub-siblings.sh
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      # Cargo.lock is not committed (library): cargo audit resolves one first.
+      # The database is kept under target/ so it never collides with the
+      # cargo-deny database in ~/.cargo/advisory-db.
+      - name: Run cargo audit
+        run: cargo audit --db target/advisory-db --deny yanked
+
+  deny:
+    name: cargo-deny (licenses + advisories + bans + sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Create optional sibling stubs
+        run: bash .github/stub-siblings.sh
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: Run cargo deny check all
+        run: cargo deny --all-features check all
+
+  unused-deps:
+    name: cargo-machete (unused dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cargo-machete
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
+      - name: Run cargo machete
+        run: cargo machete
+
+  stub-guard:
+    name: Stub / dbg guard (grep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Detect todo! / unimplemented! / panic!(STUB) / dbg! in src/**
+        run: scripts/stub_guard.sh

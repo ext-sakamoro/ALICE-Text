@@ -1,0 +1,85 @@
+name: Fuzz
+
+# The decoders take untrusted bytes (`decompress`, `decompress_v3`, the FFI and
+# Python entry points). Each target runs time-boxed on changes to the library
+# or the targets; a crash or an out-of-memory fails the job and the input is
+# kept as an artifact. scripts/preflight.sh builds the same targets.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'fuzz/**'
+      - 'Cargo.toml'
+      - '.github/workflows/fuzz.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'fuzz/**'
+      - 'Cargo.toml'
+      - '.github/workflows/fuzz.yml'
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: 'Per-target fuzz duration (seconds)'
+        required: false
+        default: '60'
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_decompress
+          - fuzz_decompress_v3
+          - fuzz_roundtrip
+    steps:
+      - uses: actions/checkout@v5
+      # cargo-fuzz needs a nightly toolchain
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Create optional sibling stubs
+        run: bash .github/stub-siblings.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+
+      # the build is blocking: a compile error must not look like a clean run
+      - name: Build fuzz target
+        run: |
+          cd fuzz
+          cargo +nightly fuzz build "${{ matrix.target }}"
+
+      - name: Run fuzz target (time-boxed)
+        id: run
+        env:
+          DURATION: ${{ github.event.inputs.duration_seconds || '60' }}
+        run: |
+          cd fuzz
+          cargo +nightly fuzz run "${{ matrix.target }}" -- \
+            -max_total_time="$DURATION" -rss_limit_mb=2048
+
+      - name: Upload crash artifacts (if any)
+        if: failure() && steps.run.outcome == 'failure'
+        uses: actions/upload-artifact@v6
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
+          retention-days: 14

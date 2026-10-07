@@ -41,8 +41,6 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 
 # --- Utilities ---
 thiserror = "1.0"
-log = { version = "0.4", features = ["max_level_info", "release_max_level_warn"] }
-bytemuck = { version = "1.14", features = ["derive"] }
 smallvec = { version = "1.13", features = ["union", "const_generics"] }
 
 # --- Query Engine Optimization ---
@@ -53,7 +51,7 @@ rayon = "1.10"     # Parallel processing
 clap = { version = "4.5", features = ["derive"] }
 
 # --- Python ---
-pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"], optional = true }
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"], optional = true }
 
 # --- ML inference ---
 alice-ml = { path = "../ALICE-ML", optional = true, default-features = false, features = ["std"] }
