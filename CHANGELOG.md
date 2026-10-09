@@ -22,6 +22,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `pyo3` 0.22 → 0.29 (`allow_threads` → `detach`); the Python module API is unchanged
 - `PatternType` is now `#[repr(u8)]` with explicit discriminants; `PatternType::to_tag` / `from_tag` / `ALL` are the single source for the wire tag
 - `tuned_pattern_learner::PatternType` is a re-export of `pattern_learner::PatternType` (the duplicated enum and its `as_u8` / `from_u8` are removed; `TunedPatternType` alias unchanged)
+- `LICENSE-MIT`: copyright year range is `2025-2026`
 
 ### Removed
 - unused dependencies `log` and `bytemuck`
