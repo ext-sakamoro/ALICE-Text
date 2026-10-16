@@ -25,6 +25,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `LICENSE-MIT`: copyright year range is `2025-2026`
 
 ### Removed
+- **Breaking (2.0.0):** the `font` feature and `font_bridge` module (character sets and text shaping with ALICE-Font). The bridge now lives on the ALICE-Font side, which depends on this crate, so `alice-text` no longer has a path dependency on it. The other feature flags and the compression API are unchanged.
 - unused dependencies `log` and `bytemuck`
 
 ### Fixed

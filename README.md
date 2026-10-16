@@ -166,7 +166,6 @@ let result = engine.query(&["timestamps", "ipv4"], "log_levels", Op::Eq, "ERROR"
 | `ml` | no | bridge to ALICE-ML: ternary next-token scoring from pre-trained weights |
 | `voice` | no | bridge to ALICE-Voice: speech encoding hints |
 | `search` | no | bridge to ALICE-Search: search index over compressed text |
-| `font` | no | bridge to ALICE-Font: character sets and text shaping |
 
 The four bridge features are path dependencies on sibling checkouts
 (`../ALICE-ML` and so on).

@@ -333,9 +333,6 @@ pub fn decompress(data: &[u8]) -> Result<String> {
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
-#[cfg(feature = "font")]
-pub mod font_bridge;
-
 #[cfg(feature = "ml")]
 pub mod ml_bridge;
 

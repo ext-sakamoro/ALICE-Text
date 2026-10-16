@@ -38,7 +38,7 @@ need python3 "python 3.9+"
 # CI creates manifest stubs for the optional sibling bridges with
 # .github/stub-siblings.sh. That script overwrites ../ALICE-*/Cargo.toml, so it
 # is not run here: a real checkout next to this one must not be replaced.
-for d in ALICE-ML ALICE-Voice ALICE-Search ALICE-Font; do
+for d in ALICE-ML ALICE-Voice ALICE-Search; do
   if [[ ! -f "../$d/Cargo.toml" ]]; then
     echo "missing ../$d/Cargo.toml (clone it, or run: bash .github/stub-siblings.sh)" >&2
     exit 1

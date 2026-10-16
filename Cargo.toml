@@ -1,6 +1,6 @@
 [package]
 name = "alice-text"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 rust-version = "1.87"
 license = "MIT OR Apache-2.0"
@@ -62,9 +62,6 @@ alice-voice = { path = "../ALICE-Voice", optional = true, default-features = fal
 # --- Search bridge ---
 alice-search = { path = "../ALICE-Search", optional = true, default-features = false }
 
-# --- Font bridge ---
-alice-font = { path = "../ALICE-Font", optional = true, default-features = false, features = ["std"] }
-
 [[bin]]
 name = "alice-text"
 path = "src/bin/alice_text.rs"
@@ -80,7 +77,6 @@ python = ["pyo3"]
 ml = ["dep:alice-ml"]  # ALICE-ML ternary inference for text prediction
 voice = ["dep:alice-voice"]  # ALICE-Voice bridge for speech encoding hints
 search = ["dep:alice-search"]  # ALICE-Search full-text index for compressed text
-font = ["dep:alice-font"]  # ALICE-Font parametric rendering pipeline
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

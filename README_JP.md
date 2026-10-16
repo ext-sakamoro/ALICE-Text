@@ -143,7 +143,6 @@ let result = engine.query(&["timestamps", "ipv4"], "log_levels", Op::Eq, "ERROR"
 | `ml` | no | ALICE-ML への bridge: 学習済み重みによる 3 値の次 token スコア |
 | `voice` | no | ALICE-Voice への bridge: 音声符号化のヒント |
 | `search` | no | ALICE-Search への bridge: 圧縮テキストの検索 index |
-| `font` | no | ALICE-Font への bridge: 文字集合とテキスト整形 |
 
 bridge の 4 feature は隣の checkout (`../ALICE-ML` など) への path 依存
 

@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # CI で optional な sibling path dep の manifest だけを用意する
 #
-# `Cargo.toml` の 4 つの path dep (alice-ml / alice-voice / alice-search /
-# alice-font) は CI に存在しないが、**cargo は optional dep でも path の実在を
+# `Cargo.toml` の 3 つの path dep (alice-ml / alice-voice / alice-search) は CI に存在しないが、**cargo は optional dep でも path の実在を
 # 要求する** ので、これが無いと `cargo check` / `test` / `clippy` が
 # manifest 解決の段階で落ちる (2026-09-29 実測: optional / 非 optional の
 # どちらでも `cargo check` は落ちる 一方 `cargo fmt -- --check` は落ちない
 # ので、fmt しか無かった頃の CI は path dep 不在でも green のままだった)
 #
-# ⚠️ ここで **stub が正しい** 理由は「4 つとも `optional = true` かつ
+# ⚠️ ここで **stub が正しい** 理由は「3 つとも `optional = true` かつ
 # `default = []`」だから 既定 feature の build では manifest が読めれば足り、
 # stub の中身は 1 行も compile されない
 #
@@ -21,16 +20,13 @@
 # **判定軸は「その dep が既定 build で compile されるか」** であって、
 # private かどうかでも暗号かどうかでもない
 #
-# `--all-features` まで CI で見たくなったら実 crate が要る そのとき
-# `alice-font` だけ PRIVATE なので deploy key が 1 本必要になる
-# (alice-ml / alice-voice / alice-search は PUBLIC)
+# `--all-features` まで CI で見たくなったら実 crate が要る (3 つとも PUBLIC)
 set -euo pipefail
 
 for entry in \
   "ALICE-ML:alice-ml" \
   "ALICE-Voice:alice-voice" \
-  "ALICE-Search:alice-search" \
-  "ALICE-Font:alice-font"; do
+  "ALICE-Search:alice-search"; do
   dir="${entry%%:*}"
   pkg="${entry##*:}"
   mkdir -p "../$dir/src"
