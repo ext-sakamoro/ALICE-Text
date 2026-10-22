@@ -7,7 +7,8 @@ All notable changes to ALICE-Text will be documented in this file.
 ### Added
 - `law` module: `TextLaw` keeps the skeletons of a corpus (lines with values replaced by placeholders) as a law and measures its exception rate (lines with an unseen skeleton / lines) on actual text; `ingest` returns a `TextVerdict` in the rule order of `alice_zip::law::Verdict` (NoEvidence / Supports / ParameterUpdate / ResidualGrew / Breaks; there is no OutOfRange for text) and does not change the law; `ExceptionCount` holds the counts; 18 tests with closed-form expectations
 - `examples/text_law.rs`: learns a 300-line log and judges four inputs
-- dependency `alice-zip` 0.5.1 (`default-features = false`) for `Provenance` / `IngestPolicy` / `LawError`
+- dependency `alice-zip` (`path = "../ALICE-Zip"`, `version = ">=0.10, <0.12"`, `default-features = false`) for `Provenance` / `IngestPolicy` / `LawError`; taken by path so that a build which also links `alice-lol` (which takes `alice-zip` by path) resolves to a single `alice-zip` instead of the registry 0.5 next to the path 0.11
+- `.github/clone-siblings.sh`: CI clones `ALICE-Zip` at one fixed commit (set in the script) next to the checkout in every job that resolves the manifest (test / clippy / MSRV / doc, cargo audit / cargo deny, fuzz); `scripts/preflight.sh` requires `../ALICE-Zip`
 - fuzz targets `fuzz_decompress`, `fuzz_decompress_v3`, `fuzz_roundtrip` and `.github/workflows/fuzz.yml` (60 s per target on changes to `src/` or `fuzz/`)
 - `.github/workflows/security-audit.yml` (cargo audit, cargo deny, cargo machete, stub guard), `deny.toml`, `scripts/stub_guard.sh`
 - `scripts/docs_lint.py` + `scripts/test_docs_lint.py`: public-document vocabulary, CHANGELOG structure, README example = crate doctest

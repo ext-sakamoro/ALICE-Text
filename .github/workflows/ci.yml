@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v5
       # the toolchain itself comes from rust-toolchain.toml
       - uses: dtolnay/rust-toolchain@stable
+      # alice-zip は既定 build で compile されるので実物を clone する (固定 commit は script 内)
+      - name: Clone required siblings
+        run: bash .github/clone-siblings.sh
       # manifests of the optional sibling bridges (see the script)
       - name: Create optional sibling stubs
         run: bash .github/stub-siblings.sh
@@ -47,6 +50,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+      # alice-zip は既定 build で compile されるので実物を clone する (固定 commit は script 内)
+      - name: Clone required siblings
+        run: bash .github/clone-siblings.sh
       - name: Create optional sibling stubs
         run: bash .github/stub-siblings.sh
       - uses: Swatinem/rust-cache@v2
@@ -65,6 +71,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.87
+      # alice-zip は既定 build で compile されるので実物を clone する (固定 commit は script 内)
+      - name: Clone required siblings
+        run: bash .github/clone-siblings.sh
       - name: Create optional sibling stubs
         run: bash .github/stub-siblings.sh
       - uses: Swatinem/rust-cache@v2
@@ -80,6 +89,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+      # alice-zip は既定 build で compile されるので実物を clone する (固定 commit は script 内)
+      - name: Clone required siblings
+        run: bash .github/clone-siblings.sh
       - name: Create optional sibling stubs
         run: bash .github/stub-siblings.sh
       - uses: Swatinem/rust-cache@v2

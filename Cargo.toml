@@ -31,7 +31,10 @@ lzma-rs = "0.3"  # Legacy, kept for compatibility
 zstd = { version = "0.13", features = ["thin"] }  # thin機能でバイナリサイズ削減
 
 # --- Law types (Provenance / IngestPolicy / LawError) ---
-alice-zip = { version = "0.5.1", default-features = false }
+# path で取る: 同じ build に入る alice-lol も path で引くので、1 つの package に
+# 解決される (registry / git の source だと別 package として 2 つ link される)
+# CI は .github/clone-siblings.sh が固定した commit を隣に clone する
+alice-zip = { path = "../ALICE-Zip", version = ">=0.10, <0.12", default-features = false }
 
 # --- Regex ---
 regex = "1.10"

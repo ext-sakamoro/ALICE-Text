@@ -44,6 +44,12 @@ for d in ALICE-ML ALICE-Voice ALICE-Search; do
     exit 1
   fi
 done
+# alice-zip is a required path dep (compiled in the default build): CI clones it
+# with .github/clone-siblings.sh at a fixed commit. Locally a real checkout must exist.
+if [[ ! -f "../ALICE-Zip/Cargo.toml" ]]; then
+  echo "missing ../ALICE-Zip/Cargo.toml (clone it, or run: bash .github/clone-siblings.sh)" >&2
+  exit 1
+fi
 
 step "ci.yml / actionlint: workflow YAML"
 actionlint .github/workflows/*.yml

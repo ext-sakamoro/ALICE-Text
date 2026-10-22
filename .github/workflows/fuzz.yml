@@ -50,6 +50,9 @@ jobs:
       - uses: actions/checkout@v5
       # cargo-fuzz needs a nightly toolchain
       - uses: dtolnay/rust-toolchain@nightly
+      # alice-zip は既定 build で compile されるので実物を clone する (固定 commit は script 内)
+      - name: Clone required siblings
+        run: bash .github/clone-siblings.sh
       - name: Create optional sibling stubs
         run: bash .github/stub-siblings.sh
       - uses: Swatinem/rust-cache@v2
