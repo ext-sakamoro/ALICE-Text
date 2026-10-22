@@ -134,6 +134,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --check
 
+  sibling-script:
+    name: clone-siblings.sh behaviour
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # the local cases run with GITHUB_ACTIONS unset inside the test
+      - name: Test .github/clone-siblings.sh
+        run: bash .github/test-clone-siblings.sh
+
   actionlint:
     name: actionlint (workflow YAML 検証)
     runs-on: ubuntu-latest

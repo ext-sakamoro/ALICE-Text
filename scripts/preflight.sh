@@ -47,7 +47,7 @@ done
 # alice-zip is a required path dep (compiled in the default build): CI clones it
 # with .github/clone-siblings.sh at a fixed commit. Locally a real checkout must exist.
 if [[ ! -f "../ALICE-Zip/Cargo.toml" ]]; then
-  echo "missing ../ALICE-Zip/Cargo.toml (clone it, or run: bash .github/clone-siblings.sh)" >&2
+  echo "missing ../ALICE-Zip/Cargo.toml (clone ALICE-Zip next to this checkout, or run: bash .github/clone-siblings.sh, which never deletes an existing ../ALICE-Zip outside CI)" >&2
   exit 1
 fi
 
@@ -60,6 +60,9 @@ cargo fmt -- --check
 step "ci.yml / docs-lint: tests + public documents / CHANGELOG structure"
 python3 scripts/test_docs_lint.py
 python3 scripts/docs_lint.py --check
+
+step "ci.yml / sibling-script: .github/clone-siblings.sh behaviour (temp dir only, fetches ALICE-Zip)"
+bash .github/test-clone-siblings.sh
 
 step "security-audit.yml / stub-guard"
 scripts/stub_guard.sh
