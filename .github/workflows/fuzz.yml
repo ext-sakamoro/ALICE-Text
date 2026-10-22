@@ -7,11 +7,12 @@ name: Fuzz
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'ci/**']
     paths:
       - 'src/**'
       - 'fuzz/**'
       - 'Cargo.toml'
+      - '.github/clone-siblings.sh'
       - '.github/workflows/fuzz.yml'
   pull_request:
     branches: [main]
@@ -19,6 +20,7 @@ on:
       - 'src/**'
       - 'fuzz/**'
       - 'Cargo.toml'
+      - '.github/clone-siblings.sh'
       - '.github/workflows/fuzz.yml'
   workflow_dispatch:
     inputs:

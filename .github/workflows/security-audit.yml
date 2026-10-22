@@ -9,9 +9,10 @@ name: Security & Hygiene
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'ci/**']
     paths:
       - 'Cargo.toml'
+      - '.github/clone-siblings.sh'
       - 'Cargo.lock'
       - 'src/**'
       - 'benches/**'
@@ -23,6 +24,7 @@ on:
     branches: [main]
     paths:
       - 'Cargo.toml'
+      - '.github/clone-siblings.sh'
       - 'Cargo.lock'
       - 'src/**'
       - 'benches/**'
