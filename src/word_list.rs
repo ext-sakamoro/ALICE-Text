@@ -4,6 +4,10 @@
 //! 合字・大文字小文字の違いでは語は隠れない (例: "ＢＡＤ" / "ﾊﾞｶ" / "ﬁne" / "STRASSE" は "bad" / "バカ" / "fine" /
 //! "straße" に当たる) 正規化と folding は [`crate::unicode_norm`] (Unicode 16.0.0 の生成表) だけを使う
 //!
+//! ⚠️ 照合は key の上の **部分文字列** の照合で、語の境界も書記素 (grapheme) の境界も見ない 語は長い語の中にも
+//! 当たり ("ass" は "class" に)、分解した文字の一部にも当たる ("e" は "é" = e + U+0301 に) 語単位・書記素単位で
+//! 当てたい時は、それは別の照合として足す (この型の意味は変えない)
+//!
 //! 照合は全語の key から作った Aho-Corasick の automaton で、文の key を 1 度なめる 遷移は code point の順序で
 //! 並べるので、同じ語の一覧はどの端末でも同じ automaton と同じ答えになる
 //!
@@ -120,7 +124,8 @@ impl WordList {
         self.words == 0
     }
 
-    /// The indices of the words that occur in `text`, ascending, each once
+    /// The indices of the words whose key occurs as a substring of `text`'s key (no word or grapheme boundary is
+    /// looked at), ascending, each once
     #[must_use]
     pub fn matches(&self, text: &str) -> Vec<usize> {
         let mut seen = vec![false; self.words];

@@ -103,3 +103,11 @@ fn a_list_is_a_value_the_same_words_give_the_same_answers() {
     assert_eq!(a.matches("bad"), vec![0, 1]);
     assert_eq!(a.len(), 2);
 }
+
+#[test]
+fn the_match_is_a_substring_of_the_key_not_a_whole_word() {
+    // the documented meaning: no word boundary and no grapheme boundary
+    let list = WordList::new(&["ass", "e"]).unwrap();
+    assert_eq!(list.matches("class"), vec![0]);
+    assert_eq!(list.matches("caf\u{e9}"), vec![1]); // é decomposes to e + U+0301
+}
