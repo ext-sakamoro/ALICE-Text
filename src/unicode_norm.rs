@@ -1,16 +1,17 @@
-//! Unicode 正規化モジュール
+//! Unicode 正規化と case folding (Unicode 16.0.0、UAX #15 と Unicode §3.13)
 //!
-//! NFD (Canonical Decomposition) と NFC (Canonical Composition) を提供する。
-//! 圧縮前にテキストを正規化することで、同一内容の異なるバイト表現による
-//! 圧縮効率の低下を防ぐ。
+//! NFD / NFC / NFKD / NFKC と、既定の case folding (full と simple) を提供する 表は
+//! `scripts/gen_unicode_tables.py` が `data/ucd/16.0.0/` の UCD から生成した `unicode_tables.rs` だけを
+//! 読み、OS や標準 library の Unicode 表には依らない (全端末で同じ結果) 版と入力 data の hash は
+//! [`UNICODE_VERSION`] と [`NORMALIZATION_SEMANTICS_ID`] に出る (版を上げれば id が変わる)
 //!
-//! # 対応範囲
-//!
-//! - ASCII 素通し (0x00-0x7F)
-//! - ラテン文字アクセント分解 / 合成 (Latin-1 Supplement, Latin Extended-A)
-//! - 合成済み文字 ↔ 基底文字 + 結合文字の変換
+//! 適合性は Unicode Consortium の NormalizationTest.txt (全 part) と CaseFolding.txt で試験する
+//! (`tests/unicode_conformance.rs`)
 //!
 //! Author: Moroya Sakamoto
+
+use crate::unicode_tables as t;
+pub use crate::unicode_tables::{NORMALIZATION_SEMANTICS_ID, UNICODE_VERSION};
 
 /// 正規化形式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,231 +22,203 @@ pub enum NormForm {
     Nfc,
 }
 
-/// 分解テーブルエントリ: (合成済み文字, 基底文字, 結合文字)。
-const DECOMPOSITION_TABLE: &[(char, char, char)] = &[
-    // Latin-1 Supplement: grave, acute, circumflex, tilde, diaeresis, ring, cedilla
-    ('\u{00C0}', 'A', '\u{0300}'), // À
-    ('\u{00C1}', 'A', '\u{0301}'), // Á
-    ('\u{00C2}', 'A', '\u{0302}'), // Â
-    ('\u{00C3}', 'A', '\u{0303}'), // Ã
-    ('\u{00C4}', 'A', '\u{0308}'), // Ä
-    ('\u{00C5}', 'A', '\u{030A}'), // Å
-    ('\u{00C7}', 'C', '\u{0327}'), // Ç
-    ('\u{00C8}', 'E', '\u{0300}'), // È
-    ('\u{00C9}', 'E', '\u{0301}'), // É
-    ('\u{00CA}', 'E', '\u{0302}'), // Ê
-    ('\u{00CB}', 'E', '\u{0308}'), // Ë
-    ('\u{00CC}', 'I', '\u{0300}'), // Ì
-    ('\u{00CD}', 'I', '\u{0301}'), // Í
-    ('\u{00CE}', 'I', '\u{0302}'), // Î
-    ('\u{00CF}', 'I', '\u{0308}'), // Ï
-    ('\u{00D1}', 'N', '\u{0303}'), // Ñ
-    ('\u{00D2}', 'O', '\u{0300}'), // Ò
-    ('\u{00D3}', 'O', '\u{0301}'), // Ó
-    ('\u{00D4}', 'O', '\u{0302}'), // Ô
-    ('\u{00D5}', 'O', '\u{0303}'), // Õ
-    ('\u{00D6}', 'O', '\u{0308}'), // Ö
-    ('\u{00D9}', 'U', '\u{0300}'), // Ù
-    ('\u{00DA}', 'U', '\u{0301}'), // Ú
-    ('\u{00DB}', 'U', '\u{0302}'), // Û
-    ('\u{00DC}', 'U', '\u{0308}'), // Ü
-    ('\u{00DD}', 'Y', '\u{0301}'), // Ý
-    ('\u{00E0}', 'a', '\u{0300}'), // à
-    ('\u{00E1}', 'a', '\u{0301}'), // á
-    ('\u{00E2}', 'a', '\u{0302}'), // â
-    ('\u{00E3}', 'a', '\u{0303}'), // ã
-    ('\u{00E4}', 'a', '\u{0308}'), // ä
-    ('\u{00E5}', 'a', '\u{030A}'), // å
-    ('\u{00E7}', 'c', '\u{0327}'), // ç
-    ('\u{00E8}', 'e', '\u{0300}'), // è
-    ('\u{00E9}', 'e', '\u{0301}'), // é
-    ('\u{00EA}', 'e', '\u{0302}'), // ê
-    ('\u{00EB}', 'e', '\u{0308}'), // ë
-    ('\u{00EC}', 'i', '\u{0300}'), // ì
-    ('\u{00ED}', 'i', '\u{0301}'), // í
-    ('\u{00EE}', 'i', '\u{0302}'), // î
-    ('\u{00EF}', 'i', '\u{0308}'), // ï
-    ('\u{00F1}', 'n', '\u{0303}'), // ñ
-    ('\u{00F2}', 'o', '\u{0300}'), // ò
-    ('\u{00F3}', 'o', '\u{0301}'), // ó
-    ('\u{00F4}', 'o', '\u{0302}'), // ô
-    ('\u{00F5}', 'o', '\u{0303}'), // õ
-    ('\u{00F6}', 'o', '\u{0308}'), // ö
-    ('\u{00F9}', 'u', '\u{0300}'), // ù
-    ('\u{00FA}', 'u', '\u{0301}'), // ú
-    ('\u{00FB}', 'u', '\u{0302}'), // û
-    ('\u{00FC}', 'u', '\u{0308}'), // ü
-    ('\u{00FD}', 'y', '\u{0301}'), // ý
-    ('\u{00FF}', 'y', '\u{0308}'), // ÿ
-    // Latin Extended-A (よく使うもの)
-    ('\u{0100}', 'A', '\u{0304}'), // Ā
-    ('\u{0101}', 'a', '\u{0304}'), // ā
-    ('\u{0102}', 'A', '\u{0306}'), // Ă
-    ('\u{0103}', 'a', '\u{0306}'), // ă
-    ('\u{0106}', 'C', '\u{0301}'), // Ć
-    ('\u{0107}', 'c', '\u{0301}'), // ć
-    ('\u{010C}', 'C', '\u{030C}'), // Č
-    ('\u{010D}', 'c', '\u{030C}'), // č
-    ('\u{010E}', 'D', '\u{030C}'), // Ď
-    ('\u{010F}', 'd', '\u{030C}'), // ď
-    ('\u{0112}', 'E', '\u{0304}'), // Ē
-    ('\u{0113}', 'e', '\u{0304}'), // ē
-    ('\u{011A}', 'E', '\u{030C}'), // Ě
-    ('\u{011B}', 'e', '\u{030C}'), // ě
-    ('\u{011E}', 'G', '\u{0306}'), // Ğ
-    ('\u{011F}', 'g', '\u{0306}'), // ğ
-    ('\u{012A}', 'I', '\u{0304}'), // Ī
-    ('\u{012B}', 'i', '\u{0304}'), // ī
-    ('\u{0143}', 'N', '\u{0301}'), // Ń
-    ('\u{0144}', 'n', '\u{0301}'), // ń
-    ('\u{0147}', 'N', '\u{030C}'), // Ň
-    ('\u{0148}', 'n', '\u{030C}'), // ň
-    ('\u{014C}', 'O', '\u{0304}'), // Ō
-    ('\u{014D}', 'o', '\u{0304}'), // ō
-    ('\u{0158}', 'R', '\u{030C}'), // Ř
-    ('\u{0159}', 'r', '\u{030C}'), // ř
-    ('\u{015A}', 'S', '\u{0301}'), // Ś
-    ('\u{015B}', 's', '\u{0301}'), // ś
-    ('\u{0160}', 'S', '\u{030C}'), // Š
-    ('\u{0161}', 's', '\u{030C}'), // š
-    ('\u{016A}', 'U', '\u{0304}'), // Ū
-    ('\u{016B}', 'u', '\u{0304}'), // ū
-    ('\u{017D}', 'Z', '\u{030C}'), // Ž
-    ('\u{017E}', 'z', '\u{030C}'), // ž
-];
+const S_BASE: u32 = 0xAC00;
+const L_BASE: u32 = 0x1100;
+const V_BASE: u32 = 0x1161;
+const T_BASE: u32 = 0x11A7;
+const L_COUNT: u32 = 19;
+const V_COUNT: u32 = 21;
+const T_COUNT: u32 = 28;
+const N_COUNT: u32 = V_COUNT * T_COUNT;
+const S_COUNT: u32 = L_COUNT * N_COUNT;
 
-/// 結合文字の Canonical Combining Class (CCC)。
-/// CCC > 0 の文字は結合文字。
-#[inline]
-const fn combining_class(c: char) -> u8 {
-    match c {
-        '\u{0300}'..='\u{0314}' => 230, // Above (grave, acute, circumflex, caron, etc.)
-        '\u{0315}' | '\u{031A}' => 232, // Above right
-        '\u{0316}'..='\u{0319}' | '\u{0323}'..='\u{0326}' | '\u{0330}'..='\u{0333}' => 220, // Below
-        '\u{031B}' => 216,              // Attached above right (horn)
-        '\u{0327}'..='\u{0328}' => 202, // Attached below (cedilla, ogonek)
-        '\u{0338}' => 1,                // Overlay
-        _ => 0,
+/// Canonical Combining Class (CCC) (表に無い文字は 0)
+fn combining_class(c: char) -> u8 {
+    let cp = c as u32;
+    match t::CCC.binary_search_by(|&(first, last, _)| {
+        if last < cp {
+            core::cmp::Ordering::Less
+        } else if first > cp {
+            core::cmp::Ordering::Greater
+        } else {
+            core::cmp::Ordering::Equal
+        }
+    }) {
+        Ok(i) => t::CCC[i].2,
+        Err(_) => 0,
     }
 }
 
-/// 結合文字かどうかを判定。
+/// 結合文字 (CCC > 0) かどうか。
 #[inline]
 #[must_use]
-pub const fn is_combining(c: char) -> bool {
+pub fn is_combining(c: char) -> bool {
     combining_class(c) > 0
 }
 
-/// 合成済み文字を NFD 分解する。分解不可の場合は `None`。
-fn decompose_char(c: char) -> Option<(char, char)> {
-    // ASCII は分解不要
-    if c.is_ascii() {
-        return None;
-    }
-    // テーブル検索
-    for &(composed, base, combining) in DECOMPOSITION_TABLE {
-        if composed == c {
-            return Some((base, combining));
-        }
-    }
-    None
+/// `cp` の (offset, length) を `index` から引く
+fn lookup(index: &[(u32, u16, u8)], cp: u32) -> Option<(usize, usize)> {
+    index
+        .binary_search_by_key(&cp, |&(c, _, _)| c)
+        .ok()
+        .map(|i| (usize::from(index[i].1), usize::from(index[i].2)))
 }
 
-/// 基底文字 + 結合文字を NFC 合成する。合成不可の場合は `None`。
-fn compose_pair(base: char, combining: char) -> Option<char> {
-    for &(composed, b, comb) in DECOMPOSITION_TABLE {
-        if b == base && comb == combining {
-            return Some(composed);
-        }
-    }
-    None
+/// 表の code point を足す (表は UnicodeData / CaseFolding の scalar value だけを持つ)
+fn append_cp(out: &mut Vec<char>, cp: u32) {
+    out.extend(char::from_u32(cp));
 }
 
-/// テキストを NFD (Canonical Decomposition) に変換。
-///
-/// 合成済み文字を基底文字 + 結合文字に分解し、
-/// 結合文字を Canonical Combining Class 順にソートする。
-#[must_use]
-pub fn to_nfd(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
+/// 1 文字の完全分解を `out` に足す (`compat` なら互換分解、Hangul 音節は算術で分解)
+fn decompose_into(c: char, compat: bool, out: &mut Vec<char>) {
+    let cp = c as u32;
+    if (S_BASE..S_BASE + S_COUNT).contains(&cp) {
+        let s = cp - S_BASE;
+        append_cp(out, L_BASE + s / N_COUNT);
+        append_cp(out, V_BASE + (s % N_COUNT) / T_COUNT);
+        if s % T_COUNT != 0 {
+            append_cp(out, T_BASE + s % T_COUNT);
+        }
+        return;
+    }
+    let found = if compat {
+        lookup(t::COMPAT, cp)
+            .map(|r| (t::COMPAT_DATA, r))
+            .or_else(|| lookup(t::CANON, cp).map(|r| (t::CANON_DATA, r)))
+    } else {
+        lookup(t::CANON, cp).map(|r| (t::CANON_DATA, r))
+    };
+    match found {
+        Some((data, (off, len))) => data[off..off + len].iter().for_each(|&x| append_cp(out, x)),
+        None => out.extend([c]),
+    }
+}
 
+/// 分解して、結合文字の並びを CCC の安定な順に並べる (Canonical Ordering)
+fn decompose(input: &str, compat: bool) -> Vec<char> {
+    let mut out = Vec::with_capacity(input.len());
     for c in input.chars() {
-        if let Some((base, combining)) = decompose_char(c) {
-            result.push(base);
-            result.push(combining);
-        } else {
-            result.push(c);
-        }
+        decompose_into(c, compat, &mut out);
     }
-
-    // 結合文字列を CCC 順にソート (Canonical Ordering)
-    canonical_order(&mut result);
-    result
-}
-
-/// テキストを NFC (Canonical Composition) に変換。
-///
-/// まず NFD に分解し、その後再合成を試みる。
-#[must_use]
-pub fn to_nfc(input: &str) -> String {
-    let nfd = to_nfd(input);
-    let chars: Vec<char> = nfd.chars().collect();
-    let len = chars.len();
-
-    if len == 0 {
-        return String::new();
-    }
-
-    let mut result = String::with_capacity(input.len());
-    let mut i = 0;
-
-    while i < len {
-        let current = chars[i];
-
-        // 結合文字が続くかチェック
-        if i + 1 < len && combining_class(chars[i + 1]) > 0 {
-            // 合成を試みる
-            if let Some(composed) = compose_pair(current, chars[i + 1]) {
-                result.push(composed);
-                i += 2;
-                continue;
+    // 非 starter の連続区間ごとに CCC で安定 insertion sort
+    let mut i = 1;
+    while i < out.len() {
+        let cc = combining_class(out[i]);
+        if cc != 0 {
+            let mut j = i;
+            while j > 0 {
+                let prev = combining_class(out[j - 1]);
+                if prev == 0 || prev <= cc {
+                    break;
+                }
+                out.swap(j - 1, j);
+                j -= 1;
             }
         }
-
-        result.push(current);
         i += 1;
     }
-
-    result
+    out
 }
 
-/// Canonical Ordering: 結合文字列を CCC 順に安定ソート。
-fn canonical_order(s: &mut String) {
-    let mut chars: Vec<char> = s.chars().collect();
-    let len = chars.len();
-
-    // バブルソート (結合文字列は通常短いので十分)
-    // 基底文字の境界を越えないようにソート
-    let mut i = 1;
-    while i < len {
-        let cc_i = combining_class(chars[i]);
-        if cc_i == 0 {
-            i += 1;
-            continue;
-        }
-        // 結合文字列の開始位置を探す
-        let mut j = i;
-        while j > 0 && combining_class(chars[j - 1]) > cc_i {
-            chars.swap(j - 1, j);
-            j -= 1;
-        }
-        i += 1;
+/// 2 文字の primary composite (Hangul は算術)
+fn compose_pair(a: char, b: char) -> Option<char> {
+    let (a, b) = (a as u32, b as u32);
+    if (L_BASE..L_BASE + L_COUNT).contains(&a) && (V_BASE..V_BASE + V_COUNT).contains(&b) {
+        return char::from_u32(S_BASE + ((a - L_BASE) * V_COUNT + (b - V_BASE)) * T_COUNT);
     }
-
-    s.clear();
-    for c in chars {
-        s.push(c);
+    if (S_BASE..S_BASE + S_COUNT).contains(&a)
+        && (a - S_BASE) % T_COUNT == 0
+        && (T_BASE + 1..T_BASE + T_COUNT).contains(&b)
+    {
+        return char::from_u32(a + (b - T_BASE));
     }
+    t::COMPOSE
+        .binary_search_by_key(&(a, b), |&(x, y, _)| (x, y))
+        .ok()
+        .and_then(|i| char::from_u32(t::COMPOSE[i].2))
+}
+
+/// Canonical Composition (UAX #15 §3.11): 遮られていない文字を直前の starter と合成する
+fn compose(chars: &[char]) -> String {
+    let mut out: Vec<char> = Vec::with_capacity(chars.len());
+    let mut starter: Option<usize> = None;
+    // starter の後に残した最後の文字の CCC (None = starter の直後)
+    let mut last_class: Option<u8> = None;
+    for &c in chars {
+        let cc = combining_class(c);
+        if let Some(si) = starter {
+            let unblocked = match last_class {
+                None => true,
+                Some(lc) => lc != 0 && lc < cc,
+            };
+            if unblocked {
+                if let Some(composed) = compose_pair(out[si], c) {
+                    out[si] = composed;
+                    continue;
+                }
+            }
+        }
+        if cc == 0 {
+            starter = Some(out.len());
+            last_class = None;
+        } else {
+            last_class = Some(cc);
+        }
+        out.extend([c]);
+    }
+    out.into_iter().collect()
+}
+
+/// NFD (Canonical Decomposition)。
+#[must_use]
+pub fn to_nfd(input: &str) -> String {
+    decompose(input, false).into_iter().collect()
+}
+
+/// NFC (Canonical Decomposition の後に Canonical Composition)。
+#[must_use]
+pub fn to_nfc(input: &str) -> String {
+    compose(&decompose(input, false))
+}
+
+/// NFKD (Compatibility Decomposition)。全角・半角や合字は互換分解される (例: "Ａ" → "A")
+#[must_use]
+pub fn to_nfkd(input: &str) -> String {
+    decompose(input, true).into_iter().collect()
+}
+
+/// NFKC (Compatibility Decomposition の後に Canonical Composition)。
+#[must_use]
+pub fn to_nfkc(input: &str) -> String {
+    compose(&decompose(input, true))
+}
+
+/// 既定の full case folding (CaseFolding.txt の status C と F、Turkic の T は含めない) 例: "Straße" → "strasse"
+#[must_use]
+pub fn case_fold(input: &str) -> String {
+    let mut out = Vec::with_capacity(input.len());
+    for c in input.chars() {
+        match lookup(t::FOLD_FULL, c as u32) {
+            Some((off, len)) => t::FOLD_FULL_DATA[off..off + len].iter().for_each(|&x| append_cp(&mut out, x)),
+            None => out.extend([c]),
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// 既定の simple case folding (status C と S、1 文字は 1 文字に)。
+#[must_use]
+pub fn case_fold_simple(input: &str) -> String {
+    input
+        .chars()
+        .map(|c| {
+            t::FOLD_SIMPLE
+                .binary_search_by_key(&(c as u32), |&(x, _)| x)
+                .ok()
+                .and_then(|i| char::from_u32(t::FOLD_SIMPLE[i].1))
+                .unwrap_or(c)
+        })
+        .collect()
 }
 
 /// テキストが指定の正規化形式かどうかを判定。

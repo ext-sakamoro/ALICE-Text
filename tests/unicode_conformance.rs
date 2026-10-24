@@ -82,8 +82,12 @@ fn every_line_of_normalization_test_holds() {
             }
         }
     }
-    // the four parts of the 16.0.0 file, each non-empty (a parse that read nothing must not pass)
-    assert_eq!(lines_per_part.keys().cloned().collect::<Vec<_>>(), ["Part0", "Part1", "Part2", "Part3"]);
+    // the six parts of the 16.0.0 file (specific cases, character by character, canonical order, PRI #29,
+    // canonical closures, chained primary composites), each non-empty (a parse that read nothing must not pass)
+    assert_eq!(
+        lines_per_part.keys().cloned().collect::<Vec<_>>(),
+        ["Part0", "Part1", "Part2", "Part3", "Part4", "Part5"]
+    );
     assert!(lines_per_part.values().all(|n| *n > 0), "{lines_per_part:?}");
     assert!(lines_per_part.values().sum::<usize>() > 19_000, "{lines_per_part:?}");
     assert!(failures.is_empty(), "{} failing:\n{}", failures.len(), failures.join("\n"));

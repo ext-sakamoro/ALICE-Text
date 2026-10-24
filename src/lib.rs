@@ -88,6 +88,9 @@ pub mod dialogue;
 
 // Unicode normalization
 pub mod unicode_norm;
+// the Unicode tables the normalization forms and the case folding read (generated, see the file header)
+#[rustfmt::skip]
+mod unicode_tables;
 
 // Line-skeleton predictor kept as a law (exception rate as its residual)
 pub mod law;
