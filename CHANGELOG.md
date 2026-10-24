@@ -20,7 +20,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `README_JP.md` (renamed from `README_ja.md`)
 
 ### Changed
-- Licence: from `MIT OR Apache-2.0` to `LicenseRef-Proprietary` from this version (the source stays published for reading; using it needs a written agreement); the crate depends on alice-ml, which is `LicenseRef-Proprietary`
+- Licence: `MIT OR Apache-2.0` → `LicenseRef-Proprietary`
 - `unicode_norm::to_nfd` / `to_nfc` / `strip_accents` / `is_combining` cover every Unicode 16.0.0 character instead of Latin-1 Supplement and Latin Extended-A (`is_combining` stays a `const fn`: a const binary search over the generated table)
 - license files match the `license` field of `Cargo.toml` (`MIT OR Apache-2.0`): `LICENSE` (Business Source License 1.1 text) is replaced by `LICENSE-MIT`; `LICENSE-APACHE` is unchanged; `pyproject.toml` declares `MIT OR Apache-2.0` (and the author address of `Cargo.toml`); README / README_JP / TRADEMARK_NOTICE point to both files, and the module headers of `dialogue` / `font_bridge` no longer say BSL 1.1
 - crate documentation: the principle section describes the implementation (skeleton + typed value columns + Zstd) instead of a next-token prediction model
