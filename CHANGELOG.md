@@ -20,6 +20,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `README_JP.md` (renamed from `README_ja.md`)
 
 ### Changed
+- dependency: `alice-zip` at ALICE-Zip commit `2261941` (from `fec22a0`; the commits between add the f64 / f32 values of the v2 law identifier and law reference, tags `0x04` / `0x07`); it takes `alice-det-math` by git (ALICE-DetMath `6384856c`), which `deny.toml` now allows
 - Licence: `MIT OR Apache-2.0` → `LicenseRef-Proprietary`
 - dependency: `alice-ml` (feature `ml`) comes by git at ALICE-ML commit `d2ce77f` (0.4.0) instead of the `../ALICE-ML` path sibling; `deny.toml` allows that git source
 - CI: `scripts/feature_check.py` builds each optional feature on its own with `cargo clippy --lib --features <name> -- -D warnings` (the features read from `Cargo.toml`, nothing built is a failure, a self-test of 11 cases), in the clippy job and the preflight
