@@ -64,7 +64,9 @@ def tree(overrides: dict[str, str] | None = None, drop: tuple[str, ...] = ()) ->
             continue
         p = os.path.join(d, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        with open(p, "w", encoding="utf-8") as f:
+        # newline="": the bytes as written (text mode would give CRLF on Windows, and the hash of a
+        # data file is taken over its bytes)
+        with open(p, "w", encoding="utf-8", newline="") as f:
             f.write(text)
     return d
 
@@ -100,6 +102,20 @@ class VerbatimData(unittest.TestCase):
         errs = errors({"data/ucd/9.0.0/emoji-data.txt": self.TEXT + "# edited\n",
                        "data/ucd/9.0.0/SHA256SUMS": self.sums(self.TEXT)})
         self.assertTrue(any("data/ucd/9.0.0/emoji-data.txt" in e for e in errs), errs)
+
+    def test_the_same_text_with_crlf_line_ends_is_another_file_and_is_checked(self):
+        # the hash is over the bytes on disk: a copy whose line ends were changed is not the listed file
+        crlf = self.TEXT.replace("\n", "\r\n")
+        self.assertFalse(dl.verbatim_data(tree({"data/ucd/9.0.0/emoji-data.txt": crlf,
+                                                "data/ucd/9.0.0/SHA256SUMS": self.sums(self.TEXT)}),
+                                          "data/ucd/9.0.0/emoji-data.txt"))
+        errs = errors({"data/ucd/9.0.0/emoji-data.txt": crlf,
+                       "data/ucd/9.0.0/SHA256SUMS": self.sums(self.TEXT)})
+        self.assertTrue(any("data/ucd/9.0.0/emoji-data.txt" in e for e in errs), errs)
+        # and with its own hash listed it is exempt again (the line ends are not what the check reads)
+        self.assertTrue(dl.verbatim_data(tree({"data/ucd/9.0.0/emoji-data.txt": crlf,
+                                               "data/ucd/9.0.0/SHA256SUMS": self.sums(crlf)}),
+                                         "data/ucd/9.0.0/emoji-data.txt"))
 
     def test_an_unlisted_file_or_one_outside_the_directory_is_checked(self):
         errs = errors({"data/ucd/9.0.0/other.txt": self.TEXT,
