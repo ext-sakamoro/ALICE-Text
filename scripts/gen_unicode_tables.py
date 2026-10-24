@@ -19,25 +19,54 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "ucd" / ".".join(map(str, VERSION))
 OUT = ROOT / "src" / "unicode_tables.rs"
 FILES = ["CaseFolding.txt", "CompositionExclusions.txt", "NormalizationTest.txt", "UnicodeData.txt"]
+WB_DATA = DATA / "word-break"
+WB_FILES = ["WordBreakProperty.txt", "WordBreakTest.txt", "emoji-data.txt"]
+# the Word_Break values, in the order of the generated `Wb` enum (Other is 0: every code point not listed)
+WB_VALUES = ["Other", "CR", "LF", "Newline", "Extend", "ZWJ", "Regional_Indicator", "Format", "Katakana",
+             "Hebrew_Letter", "ALetter", "Single_Quote", "Double_Quote", "MidNumLet", "MidLetter", "MidNum",
+             "Numeric", "ExtendNumLet", "WSegSpace"]
 
 S_BASE, L_BASE, V_BASE, T_BASE = 0xAC00, 0x1100, 0x1161, 0x11A7
 L_COUNT, V_COUNT, T_COUNT = 19, 21, 28
 S_COUNT = L_COUNT * V_COUNT * T_COUNT
 
 
-def checked_sums() -> str:
-    sums = (DATA / "SHA256SUMS").read_text(encoding="utf-8")
+def checked_sums(directory: Path = DATA, files: list[str] = FILES) -> str:
+    sums = (directory / "SHA256SUMS").read_text(encoding="utf-8")
     listed = {}
     for line in sums.splitlines():
         digest, name = line.split(maxsplit=1)
         listed[name.strip()] = digest
-    if sorted(listed) != FILES:
-        sys.exit(f"SHA256SUMS lists {sorted(listed)}, not {FILES}")
+    if sorted(listed, key=str.lower) != sorted(files, key=str.lower):
+        sys.exit(f"{directory}/SHA256SUMS lists {sorted(listed)}, not {files}")
     for name, digest in listed.items():
-        got = hashlib.sha256((DATA / name).read_bytes()).hexdigest()
+        got = hashlib.sha256((directory / name).read_bytes()).hexdigest()
         if got != digest:
             sys.exit(f"{name}: sha256 {got}, SHA256SUMS says {digest}")
     return sums
+
+
+def wb_name(value: str) -> str:
+    """the Rust variant of a Word_Break value (CR / LF / ZWJ as Cr / Lf / Zwj)"""
+    return {"CR": "Cr", "LF": "Lf", "ZWJ": "Zwj"}.get(value, value.replace("_", ""))
+
+
+def property_ranges(path: Path, wanted: dict[str, int]) -> dict[int, int]:
+    """{code point: value} from a `range ; Property` file, for the property names in `wanted`"""
+    out = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+        cps, prop = [x.strip() for x in line.split(";")[:2]]
+        if prop not in wanted:
+            continue
+        a, _, b = cps.partition("..")
+        for cp in range(int(a, 16), int(b or a, 16) + 1):
+            if cp in out and out[cp] != wanted[prop]:
+                sys.exit(f"{path.name}: {cp:04X} has two values")
+            out[cp] = wanted[prop]
+    return out
 
 
 def unicode_data():
@@ -178,6 +207,44 @@ def generate() -> str:
             "pub static FOLD_SIMPLE: &[(u32, u32)] = &["]
     fs = sorted(fold_simple.items())
     out += [f"    {', '.join(f'({a:#07x}, {b:#07x})' for a, b in fs[i:i + 6])}," for i in range(0, len(fs), 6)]
+    out += ["];", ""]
+
+    # UAX #29 word boundaries: the Word_Break property and Extended_Pictographic (WB3c)
+    wb_sums = checked_sums(WB_DATA, WB_FILES)
+    wb = property_ranges(WB_DATA / "WordBreakProperty.txt", {v: i for i, v in enumerate(WB_VALUES) if i})
+    pict = property_ranges(WB_DATA / "emoji-data.txt", {"Extended_Pictographic": 1})
+    wb_id = hashlib.sha256(f"alice-text word break v1\nunicode {version}\n{wb_sums}".encode()).digest()
+    out += [
+        "// UAX #29 word boundaries, from data/ucd/" + version + "/word-break/ (SHA256SUMS there):",
+    ]
+    out += [f"//   {line}" for line in wb_sums.splitlines()]
+    out += [
+        "",
+        "/// SHA-256 of `alice-text word break v1\\nunicode <version>\\n` and the word-break files' SHA256SUMS.",
+        "pub const WORD_BREAK_SEMANTICS_ID: [u8; 32] = [",
+        "    " + ", ".join(f"{b:#04x}" for b in wb_id[:16]) + ",",
+        "    " + ", ".join(f"{b:#04x}" for b in wb_id[16:]) + ",",
+        "];",
+        "",
+        "/// The `Word_Break` values (`Other` for every code point the property file does not list).",
+        "#[derive(Debug, Clone, Copy, PartialEq, Eq)]",
+        "pub enum Wb {",
+    ]
+    out += [f"    {wb_name(v)}," for v in WB_VALUES]
+    out += [
+        "}",
+        "",
+        "/// `Word_Break`, as (first, last, value) ranges sorted by code point.",
+        "pub const WORD_BREAK: &[(u32, u32, Wb)] = &[",
+    ]
+    names = [wb_name(v) for v in WB_VALUES]
+    wr = ranges(wb)
+    out += [f"    {', '.join(f'({a:#07x}, {b:#07x}, Wb::{names[c]})' for a, b, c in wr[i:i + 3])},"
+            for i in range(0, len(wr), 3)]
+    out += ["];", "", "/// `Extended_Pictographic`, as (first, last) ranges sorted by code point.",
+            "pub const EXTENDED_PICTOGRAPHIC: &[(u32, u32)] = &["]
+    pr = [(a, b) for a, b, _ in ranges(pict)]
+    out += [f"    {', '.join(f'({a:#07x}, {b:#07x})' for a, b in pr[i:i + 6])}," for i in range(0, len(pr), 6)]
     out += ["];", ""]
     assert S_COUNT == 11172
     return "\n".join(out)
