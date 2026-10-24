@@ -253,9 +253,14 @@ scripts/preflight.sh --quick    # static checks, clippy, docs and `cargo test --
 
 ## License
 
-Licensed under either of
+`LicenseRef-Proprietary` from this version: the source is published for reading only, and
+using, copying, modifying or distributing it needs a written agreement with
+the copyright holder. The text is [LICENSE-Proprietary](LICENSE-Proprietary). Versions
+published before keep the licence they were published under.
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
+Licence enquiries: <contact@extoria.co.jp>
 
-at your option. Trademark terms are in [TRADEMARK_NOTICE](TRADEMARK_NOTICE).
+The Unicode Character Database files under `data/ucd/` are third-party data under the
+Unicode License v3: [data/ucd/LICENSE-Unicode.txt](data/ucd/LICENSE-Unicode.txt).
+
+Trademark terms are in [TRADEMARK_NOTICE](TRADEMARK_NOTICE).

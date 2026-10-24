@@ -8,7 +8,7 @@ name = "alice-text"
 version = "1.0.0"
 description = "ALICE Exception-Based Text Compression - Send only surprises, not predictions"
 readme = "README.md"
-license = {text = "MIT OR Apache-2.0"}
+license = {text = "LicenseRef-Proprietary"}
 authors = [
     {name = "Moroya Sakamoto", email = "sakamoro@alicelaw.net"}
 ]
