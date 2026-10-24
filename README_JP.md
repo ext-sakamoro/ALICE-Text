@@ -216,9 +216,12 @@ scripts/preflight.sh --quick    # static checks, clippy, docs and `cargo test --
 
 ## ライセンス
 
-次のどちらかを選んで利用できる
+この版から `LicenseRef-Proprietary`: ソースは閲覧用に公開しており、利用・複製・改変・配布には
+著作権者との書面での合意が必要 条文は [LICENSE-Proprietary](LICENSE-Proprietary)
+それより前に公開した版は、公開時のライセンスのまま
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
+ライセンスの問い合わせ: <sakamoro@alicelaw.net>
+
+`data/ucd/` の Unicode Character Database の file は第三者のデータで、Unicode License v3 に従う: [data/ucd/LICENSE-Unicode.txt](data/ucd/LICENSE-Unicode.txt)
 
 商標の条件は [TRADEMARK_NOTICE](TRADEMARK_NOTICE)

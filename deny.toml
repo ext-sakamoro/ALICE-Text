@@ -42,6 +42,11 @@ allow = [
     "Unicode-3.0",
 ]
 
+# this crate is publish = false and LicenseRef-Proprietary: unpublished
+# workspace crates are not checked against the allow list
+[licenses.private]
+ignore = true
+
 # ---------------------------------------------------------------------------
 # Bans
 # ---------------------------------------------------------------------------
