@@ -63,6 +63,7 @@ python3 scripts/docs_lint.py --check
 
 step "ci.yml / unicode: tables from the hashed data, cross-check tests, every scalar against unicodedata"
 python3 scripts/gen_unicode_tables.py --check
+python3 scripts/test_unicode_data_pin.py
 if python3 -c 'import sys, unicodedata; sys.exit(unicodedata.unidata_version != "16.0.0")'; then
   python3 scripts/test_unicode_crosscheck.py
   d="$(mktemp -d)"

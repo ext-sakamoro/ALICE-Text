@@ -4,9 +4,10 @@
 //! 合字・大文字小文字の違いでは語は隠れない (例: "ＢＡＤ" / "ﾊﾞｶ" / "ﬁne" / "STRASSE" は "bad" / "バカ" / "fine" /
 //! "straße" に当たる) 正規化と folding は [`crate::unicode_norm`] (Unicode 16.0.0 の生成表) だけを使う
 //!
-//! ⚠️ 照合は key の上の **部分文字列** の照合で、語の境界も書記素 (grapheme) の境界も見ない 語は長い語の中にも
-//! 当たり ("ass" は "class" に)、分解した文字の一部にも当たる ("e" は "é" = e + U+0301 に) 語単位・書記素単位で
-//! 当てたい時は、それは別の照合として足す (この型の意味は変えない)
+//! 既定 ([`WordList::new`]) では、語は文の **語の境界** (UAX #29、[`crate::word_break`]) で始まり境界で終わる時だけ
+//! 当たる ("ass" は "class" に当たらず "an ass." に当たる、"e" は "café" に当たらない、空白を含む語は境界から
+//! 境界までの区間に当たる、片仮名の連続は 1 語 (WB13) なので "バカ" は "バカヤロー" に当たらない)
+//! [`WordList::substring`] は境界を見ない部分文字列の照合 (語は長い語の中にも、分解した文字の一部にも当たる)
 //!
 //! 照合は全語の key から作った Aho-Corasick の automaton で、文の key を 1 度なめる 遷移は code point の順序で
 //! 並べるので、同じ語の一覧はどの端末でも同じ automaton と同じ答えになる
@@ -17,6 +18,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 
 use crate::unicode_norm::{case_fold, to_nfd, to_nfkd};
+use crate::word_break::boundaries;
 
 /// The compatibility caseless key of `s` (D146)
 fn key(s: &str) -> Vec<char> {
@@ -56,20 +58,40 @@ struct Node {
 pub struct WordList {
     words: usize,
     nodes: Vec<Node>,
+    /// each word's key length in chars
+    lengths: Vec<usize>,
+    /// whether a match must start and end at word boundaries
+    bounded: bool,
 }
 
 impl WordList {
-    /// The list of `words` (each compared by its caseless key)
+    /// The list of `words` (each compared by its caseless key), each found only from a word boundary of the
+    /// text to a word boundary
     ///
     /// # Errors
     /// [`WordListError::EmptyWord`] for the first empty word.
     pub fn new(words: &[&str]) -> Result<Self, WordListError> {
+        Self::build(words, true)
+    }
+
+    /// The list of `words`, each found wherever its key occurs in the text's key (no word or grapheme boundary
+    /// is looked at)
+    ///
+    /// # Errors
+    /// [`WordListError::EmptyWord`] for the first empty word.
+    pub fn substring(words: &[&str]) -> Result<Self, WordListError> {
+        Self::build(words, false)
+    }
+
+    fn build(words: &[&str], bounded: bool) -> Result<Self, WordListError> {
         let mut nodes = vec![Node::default()];
+        let mut lengths = Vec::with_capacity(words.len());
         for (i, w) in words.iter().enumerate() {
             let k = key(w);
             if k.is_empty() {
                 return Err(WordListError::EmptyWord(i));
             }
+            lengths.push(k.len());
             let mut at = 0;
             for c in k {
                 at = if let Some(&n) = nodes[at].next.get(&c) {
@@ -109,6 +131,8 @@ impl WordList {
         Ok(Self {
             words: words.len(),
             nodes,
+            lengths,
+            bounded,
         })
     }
 
@@ -124,13 +148,28 @@ impl WordList {
         self.words == 0
     }
 
-    /// The indices of the words whose key occurs as a substring of `text`'s key (no word or grapheme boundary is
-    /// looked at), ascending, each once
+    /// The indices of the words found in `text` (at word boundaries, or anywhere for a [`Self::substring`]
+    /// list), ascending, each once
     #[must_use]
     pub fn matches(&self, text: &str) -> Vec<usize> {
+        // the text's key, and which char positions of it are word boundaries of the text (each segment keyed on
+        // its own: a segment never starts with a combining mark (WB4), so the keys concatenate)
+        let (keyed, at_boundary) = if self.bounded {
+            let b = boundaries(text);
+            let mut k = Vec::with_capacity(text.len());
+            let mut mark = vec![true];
+            for w in b.windows(2) {
+                k.extend(key(&text[w[0]..w[1]]));
+                mark.resize(k.len(), false);
+                mark.push(true);
+            }
+            (k, mark)
+        } else {
+            (key(text), Vec::new())
+        };
         let mut seen = vec![false; self.words];
         let mut at = 0;
-        for c in key(text) {
+        for (i, &c) in keyed.iter().enumerate() {
             loop {
                 if let Some(&n) = self.nodes[at].next.get(&c) {
                     at = n;
@@ -142,7 +181,10 @@ impl WordList {
                 at = self.nodes[at].fail;
             }
             for &w in &self.nodes[at].out {
-                seen[w] = true;
+                let end = i + 1;
+                if !self.bounded || (at_boundary[end - self.lengths[w]] && at_boundary[end]) {
+                    seen[w] = true;
+                }
             }
         }
         (0..self.words).filter(|&w| seen[w]).collect()

@@ -131,6 +131,8 @@ jobs:
         run: python scripts/gen_unicode_tables.py --check
       - name: Cross-check (tests)
         run: python scripts/test_unicode_crosscheck.py
+      - name: The data cannot change quietly (a file edited with its SHA256SUMS moves the pinned ids)
+        run: python scripts/test_unicode_data_pin.py
       - name: Every scalar value against unicodedata
         shell: bash
         run: |

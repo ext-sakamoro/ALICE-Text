@@ -81,6 +81,27 @@ TREE_LABELS = ("agent process", "session name", "internal tracker", "internal no
 # These files define and test the vocabulary, so they spell it out
 TREE_VOCAB_EXEMPT = {"scripts/docs_lint.py", "scripts/test_docs_lint.py"}
 
+# third-party data kept byte for byte (the Unicode Character Database): a file under this directory is exempt from
+# the vocabulary check only while its SHA-256 is the one in the SHA256SUMS next to it (an edited file, or one the
+# list does not name, is checked like any other); private names are checked in it either way
+VERBATIM_DATA_DIR = "data/ucd/"
+
+
+def verbatim_data(root: str, rel: str) -> bool:
+    """Whether `rel` is an unedited file of the checked-in third-party data (its hash is in its SHA256SUMS)."""
+    import hashlib
+    if not rel.startswith(VERBATIM_DATA_DIR) or rel.endswith("/SHA256SUMS"):
+        return False
+    directory, name = os.path.split(rel)
+    try:
+        with open(os.path.join(root, directory, "SHA256SUMS"), encoding="utf-8") as f:
+            listed = dict(reversed(line.split(maxsplit=1)) for line in f.read().splitlines() if line.strip())
+        with open(os.path.join(root, rel), "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+    except (OSError, ValueError):
+        return False
+    return listed.get(name) == digest
+
 # Names of unrelated private projects and of internal infrastructure are not written
 # here in plain text: this file
 # is public, and a list of names would itself disclose them. Each entry is the
@@ -285,7 +306,7 @@ def check(root: str) -> tuple[list[str], dict[str, int]]:
         for i, line in enumerate(text.splitlines(), 1):
             for name in private_names(line):
                 errors.append(f"{rel}:{i}: private or internal name (`{name}`)")
-            if rel in TREE_VOCAB_EXEMPT:
+            if rel in TREE_VOCAB_EXEMPT or verbatim_data(root, rel):
                 continue
             counts["tree vocabulary"] += 1
             for label, pat in FORBIDDEN:

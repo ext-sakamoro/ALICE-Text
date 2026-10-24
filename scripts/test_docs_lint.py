@@ -82,6 +82,34 @@ class RealRepo(unittest.TestCase):
         self.assertGreater(counts["tree vocabulary"], 0)
 
 
+class VerbatimData(unittest.TestCase):
+    """third-party data under data/ucd/ is exempt from the vocabulary check only while its hash is listed"""
+
+    TEXT = "1F477 ; Extended_Pictographic # construction worker\n"
+
+    def sums(self, text: str, name: str = "emoji-data.txt") -> str:
+        import hashlib
+        return f"{hashlib.sha256(text.encode()).hexdigest()}  {name}\n"
+
+    def test_an_unedited_listed_file_is_exempt(self):
+        errs = errors({"data/ucd/9.0.0/emoji-data.txt": self.TEXT,
+                       "data/ucd/9.0.0/SHA256SUMS": self.sums(self.TEXT)})
+        self.assertEqual([e for e in errs if "data/ucd" in e], [])
+
+    def test_an_edited_file_is_checked(self):
+        errs = errors({"data/ucd/9.0.0/emoji-data.txt": self.TEXT + "# edited\n",
+                       "data/ucd/9.0.0/SHA256SUMS": self.sums(self.TEXT)})
+        self.assertTrue(any("data/ucd/9.0.0/emoji-data.txt" in e for e in errs), errs)
+
+    def test_an_unlisted_file_or_one_outside_the_directory_is_checked(self):
+        errs = errors({"data/ucd/9.0.0/other.txt": self.TEXT,
+                       "data/ucd/9.0.0/SHA256SUMS": self.sums(self.TEXT)})
+        self.assertTrue(any("data/ucd/9.0.0/other.txt" in e for e in errs), errs)
+        errs = errors({"data/elsewhere/emoji-data.txt": self.TEXT,
+                       "data/elsewhere/SHA256SUMS": self.sums(self.TEXT)})
+        self.assertTrue(any("data/elsewhere/emoji-data.txt" in e for e in errs), errs)
+
+
 class Vocabulary(unittest.TestCase):
     def test_clean_tree_passes(self):
         self.assertEqual(errors(), [])
