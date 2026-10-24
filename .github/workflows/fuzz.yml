@@ -12,7 +12,6 @@ on:
       - 'src/**'
       - 'fuzz/**'
       - 'Cargo.toml'
-      - '.github/clone-siblings.sh'
       - '.github/workflows/fuzz.yml'
   pull_request:
     branches: [main]
@@ -20,7 +19,6 @@ on:
       - 'src/**'
       - 'fuzz/**'
       - 'Cargo.toml'
-      - '.github/clone-siblings.sh'
       - '.github/workflows/fuzz.yml'
   workflow_dispatch:
     inputs:
@@ -52,9 +50,6 @@ jobs:
       - uses: actions/checkout@v5
       # cargo-fuzz needs a nightly toolchain
       - uses: dtolnay/rust-toolchain@nightly
-      # alice-zip は既定 build で compile されるので実物を clone する (固定 commit は script 内)
-      - name: Clone required siblings
-        run: bash .github/clone-siblings.sh
       - name: Create optional sibling stubs
         run: bash .github/stub-siblings.sh
       - uses: Swatinem/rust-cache@v2
