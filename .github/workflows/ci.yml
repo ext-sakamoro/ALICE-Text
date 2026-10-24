@@ -135,7 +135,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo run --locked --release --example unicode_dump > unicode_dump.txt
+          # (no --locked, as in the other jobs: the optional siblings are stubs here, so the lock cannot match)
+          cargo run --release --example unicode_dump > unicode_dump.txt
           python scripts/unicode_crosscheck.py unicode_dump.txt
 
   docs-lint:

@@ -66,7 +66,7 @@ python3 scripts/gen_unicode_tables.py --check
 if python3 -c 'import sys, unicodedata; sys.exit(unicodedata.unidata_version != "16.0.0")'; then
   python3 scripts/test_unicode_crosscheck.py
   d="$(mktemp -d)"
-  cargo run --locked --release --example unicode_dump > "${d}/unicode_dump.txt"
+  cargo run --release --example unicode_dump > "${d}/unicode_dump.txt"
   python3 scripts/unicode_crosscheck.py "${d}/unicode_dump.txt"
 else
   echo 'PREFLIGHT-SKIP: ci.yml / unicode: python3 has another unicodedata version than 16.0.0 (CI pins Python 3.14)' >&2
