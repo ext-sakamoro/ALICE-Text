@@ -61,6 +61,17 @@ step "ci.yml / docs-lint: tests + public documents / CHANGELOG structure"
 python3 scripts/test_docs_lint.py
 python3 scripts/docs_lint.py --check
 
+step "ci.yml / unicode: tables from the hashed data, cross-check tests, every scalar against unicodedata"
+python3 scripts/gen_unicode_tables.py --check
+if python3 -c 'import sys, unicodedata; sys.exit(unicodedata.unidata_version != "16.0.0")'; then
+  python3 scripts/test_unicode_crosscheck.py
+  d="$(mktemp -d)"
+  cargo run --locked --release --example unicode_dump > "${d}/unicode_dump.txt"
+  python3 scripts/unicode_crosscheck.py "${d}/unicode_dump.txt"
+else
+  echo 'PREFLIGHT-SKIP: ci.yml / unicode: python3 has another unicodedata version than 16.0.0 (CI pins Python 3.14)' >&2
+fi
+
 step "ci.yml / sibling-script: .github/clone-siblings.sh behaviour (temp dir only, fetches ALICE-Zip)"
 bash .github/test-clone-siblings.sh
 
