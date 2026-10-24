@@ -5,6 +5,10 @@ All notable changes to ALICE-Text will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `unicode_norm`: Unicode 16.0.0 normalization for the whole code space — `to_nfd` / `to_nfc` (existing) and the new `to_nfkd` / `to_nfkc` (full-width / half-width forms and other compatibility characters), with Hangul composed and decomposed arithmetically; `case_fold` (full default case folding, status C + F) and `case_fold_simple` (C + S); `UNICODE_VERSION` and `NORMALIZATION_SEMANTICS_ID` (SHA-256 of the version and the data files' hashes, so another Unicode version is another id)
+- `data/ucd/16.0.0/`: UnicodeData, CompositionExclusions, CaseFolding and NormalizationTest at 16.0.0 with `SHA256SUMS`, and the Unicode licence; `scripts/gen_unicode_tables.py` writes `src/unicode_tables.rs` from them after checking the hashes (`--check` compares); nothing is read from the platform's or the standard library's Unicode tables
+- `tests/unicode_conformance.rs`: every line of all six parts of NormalizationTest, every code point outside part 1 unchanged by the four forms, and full and simple folding of every scalar value against CaseFolding
+- `examples/unicode_dump.rs` + `scripts/unicode_crosscheck.py` (+ tests): every scalar value's four forms and folding compared with Python's `unicodedata` at the same Unicode version (another version fails); CI job `unicode` on Linux, macOS and Windows with the generator check
 - `law` module: `TextLaw` keeps the skeletons of a corpus (lines with values replaced by placeholders) as a law and measures its exception rate (lines with an unseen skeleton / lines) on actual text; `ingest` returns a `TextVerdict` in the rule order of `alice_zip::law::Verdict` (NoEvidence / Supports / ParameterUpdate / ResidualGrew / Breaks; there is no OutOfRange for text) and does not change the law; `ExceptionCount` holds the counts; 18 tests with closed-form expectations
 - `examples/text_law.rs`: learns a 300-line log and judges four inputs
 - dependency `alice-zip` (`path = "../ALICE-Zip"`, `version = ">=0.10, <0.12"`, `default-features = false`) for `Provenance` / `IngestPolicy` / `LawError`; taken by path so that a build which also links `alice-lol` (which takes `alice-zip` by path) resolves to a single `alice-zip` instead of the registry 0.5 next to the path 0.11
@@ -15,6 +19,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `README_JP.md` (renamed from `README_ja.md`)
 
 ### Changed
+- `unicode_norm::to_nfd` / `to_nfc` / `strip_accents` / `is_combining` cover every Unicode 16.0.0 character instead of Latin-1 Supplement and Latin Extended-A; `is_combining` is no longer a `const fn` (it searches the generated table)
 - license files match the `license` field of `Cargo.toml` (`MIT OR Apache-2.0`): `LICENSE` (Business Source License 1.1 text) is replaced by `LICENSE-MIT`; `LICENSE-APACHE` is unchanged; `pyproject.toml` declares `MIT OR Apache-2.0` (and the author address of `Cargo.toml`); README / README_JP / TRADEMARK_NOTICE point to both files, and the module headers of `dialogue` / `font_bridge` no longer say BSL 1.1
 - crate documentation: the principle section describes the implementation (skeleton + typed value columns + Zstd) instead of a next-token prediction model
 - CI: tests on Linux x86_64 / arm64, macOS and Windows with default features and `ffi`, the example and benches compile; clippy pedantic + nursery for default and `ffi,python`; MSRV job; rustdoc `-D warnings`; docs lint on three OS; `scripts/preflight.sh` runs the same commands (`--quick` runs `cargo test --lib`)
