@@ -35,16 +35,6 @@ relint() { touch src/lib.rs; }
 need actionlint "brew install actionlint"
 need python3 "python 3.9+"
 
-# CI creates manifest stubs for the optional sibling bridges with
-# .github/stub-siblings.sh. That script overwrites ../ALICE-*/Cargo.toml, so it
-# is not run here: a real checkout next to this one must not be replaced.
-for d in ALICE-ML ALICE-Voice ALICE-Search; do
-  if [[ ! -f "../$d/Cargo.toml" ]]; then
-    echo "missing ../$d/Cargo.toml (clone it, or run: bash .github/stub-siblings.sh)" >&2
-    exit 1
-  fi
-done
-
 step "ci.yml / actionlint: workflow YAML"
 actionlint .github/workflows/*.yml
 
@@ -76,6 +66,10 @@ relint
 cargo clippy --all-targets -- -D warnings
 relint
 cargo clippy --all-targets --features ffi,python -- -D warnings
+
+step "ci.yml / clippy: each optional feature"
+python3 scripts/feature_check.py --self-test
+python3 scripts/feature_check.py --ci
 
 step "ci.yml / doc: rustdoc -D warnings (default, ffi + python)"
 RUSTDOCFLAGS="-Dwarnings" cargo doc --lib --no-deps

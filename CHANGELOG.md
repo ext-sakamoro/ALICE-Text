@@ -21,6 +21,9 @@ All notable changes to ALICE-Text will be documented in this file.
 
 ### Changed
 - Licence: `MIT OR Apache-2.0` → `LicenseRef-Proprietary`
+- dependency: `alice-ml` (feature `ml`) comes by git at ALICE-ML commit `d2ce77f` (0.4.0) instead of the `../ALICE-ML` path sibling; `deny.toml` allows that git source
+- CI: `scripts/feature_check.py` builds each optional feature on its own with `cargo clippy --lib --features <name> -- -D warnings` (the features read from `Cargo.toml`, nothing built is a failure, a self-test of 11 cases), in the clippy job and the preflight
+- `ml_bridge`: `TextPredictor::new` / `predict_top` / `context_size` / `vocab_size` are `#[must_use]`, the two sizes are `const fn`, and `predict_top` documents that it panics on an empty vocabulary (the `ml` feature had not been linted)
 - `unicode_norm::to_nfd` / `to_nfc` / `strip_accents` / `is_combining` cover every Unicode 16.0.0 character instead of Latin-1 Supplement and Latin Extended-A (`is_combining` stays a `const fn`: a const binary search over the generated table)
 - license files match the `license` field of `Cargo.toml` (`MIT OR Apache-2.0`): `LICENSE` (Business Source License 1.1 text) is replaced by `LICENSE-MIT`; `LICENSE-APACHE` is unchanged; `pyproject.toml` declares `MIT OR Apache-2.0` (and the author address of `Cargo.toml`); README / README_JP / TRADEMARK_NOTICE point to both files, and the module headers of `dialogue` / `font_bridge` no longer say BSL 1.1
 - crate documentation: the principle section describes the implementation (skeleton + typed value columns + Zstd) instead of a next-token prediction model
@@ -33,6 +36,8 @@ All notable changes to ALICE-Text will be documented in this file.
 - `LICENSE-MIT`: copyright year range is `2025-2026`
 
 ### Removed
+- **Breaking:** the `voice` and `search` features and the `voice_bridge` / `search_bridge` modules. The speech encoding hints (`SpeechHints`, `VoiceMode`, `analyze_for_speech`, `compress_transcript`, `codec_config_from_hints`) are in ALICE-Voice's `text` feature, and the search with context windows (`CompressedSearchIndex::search` / `search_count`) in ALICE-Search's `text` feature; both depend on this crate. `search` had not compiled (ALICE-Search without default features builds no `std`, and `search_bridge` called `ALICEText::new` without its mode)
+- `.github/stub-siblings.sh` and the CI steps that ran it: no dependency is a path sibling any more
 - **Breaking (2.0.0):** the `font` feature and `font_bridge` module (character sets and text shaping with ALICE-Font). The bridge now lives on the ALICE-Font side, which depends on this crate, so `alice-text` no longer has a path dependency on it. The other feature flags and the compression API are unchanged.
 - unused dependencies `log` and `bytemuck`
 

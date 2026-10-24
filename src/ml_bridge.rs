@@ -21,9 +21,10 @@ pub struct TextPredictor {
 impl TextPredictor {
     /// Create a text predictor from pre-trained ternary weights.
     ///
-    /// - `weights`: ternary values (vocab_size × context_size).
+    /// - `weights`: ternary values (`vocab_size` × `context_size`).
     /// - `context_size`: number of input context features.
     /// - `vocab_size`: number of output prediction classes.
+    #[must_use]
     pub fn new(weights: &[i8], context_size: usize, vocab_size: usize) -> Self {
         Self {
             weights: TernaryWeight::from_ternary(weights, vocab_size, context_size),
@@ -46,7 +47,7 @@ impl TextPredictor {
         self.predict_logits(context, output);
         // Inline softmax to avoid Tensor API dependency
         let slice = &mut output[..self.vocab_size];
-        let max = slice.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        let max = slice.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         let mut sum = 0.0f32;
         for v in slice.iter_mut() {
             *v = (*v - max).exp();
@@ -60,6 +61,10 @@ impl TextPredictor {
     }
 
     /// Find the most likely next token.
+    ///
+    /// # Panics
+    /// When the vocabulary is empty (`vocab_size` is 0): there is no token to pick.
+    #[must_use]
     pub fn predict_top(&self, context: &[f32]) -> (usize, f32) {
         let mut logits = vec![0.0f32; self.vocab_size];
         self.predict_logits(context, &mut logits);
@@ -72,11 +77,13 @@ impl TextPredictor {
     }
 
     /// Context window size.
-    pub fn context_size(&self) -> usize {
+    #[must_use]
+    pub const fn context_size(&self) -> usize {
         self.context_size
     }
     /// Vocabulary size.
-    pub fn vocab_size(&self) -> usize {
+    #[must_use]
+    pub const fn vocab_size(&self) -> usize {
         self.vocab_size
     }
 }

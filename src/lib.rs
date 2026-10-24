@@ -341,12 +341,6 @@ pub mod ffi;
 #[cfg(feature = "ml")]
 pub mod ml_bridge;
 
-#[cfg(feature = "voice")]
-pub mod voice_bridge;
-
-#[cfg(feature = "search")]
-pub mod search_bridge;
-
 #[cfg(feature = "python")]
 mod python_bindings {
     use super::{ALICEText, EncodingMode};

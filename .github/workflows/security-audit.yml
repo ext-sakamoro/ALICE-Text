@@ -50,8 +50,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-      - name: Create optional sibling stubs
-        run: bash .github/stub-siblings.sh
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-audit
         uses: taiki-e/install-action@v2
@@ -69,8 +67,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-      - name: Create optional sibling stubs
-        run: bash .github/stub-siblings.sh
       - name: Install cargo-deny
         uses: taiki-e/install-action@v2
         with:

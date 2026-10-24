@@ -164,11 +164,9 @@ let result = engine.query(&["timestamps", "ipv4"], "log_levels", Op::Eq, "ERROR"
 | `ffi` | no | C ABI (`extern "C"`) for compression, statistics, entropy and dialogue tables; C# and C++ headers in `bindings/` |
 | `python` | no | PyO3 module `alice_text` (built with maturin) |
 | `ml` | no | bridge to ALICE-ML: ternary next-token scoring from pre-trained weights |
-| `voice` | no | bridge to ALICE-Voice: speech encoding hints |
-| `search` | no | bridge to ALICE-Search: search index over compressed text |
 
-The four bridge features are path dependencies on sibling checkouts
-(`../ALICE-ML` and so on).
+The `ml` bridge takes ALICE-ML by git at a fixed commit. Speech encoding hints and the search index
+over compressed text are in ALICE-Voice and ALICE-Search (their `text` feature).
 
 ## Measurements
 
@@ -231,10 +229,8 @@ toolchain pinned in `rust-toolchain.toml`.
 
 ## Building and testing
 
-The bridge features are optional path dependencies, but cargo needs their
-manifests to resolve the package. Clone the siblings next to this checkout,
-or create empty manifests with `bash .github/stub-siblings.sh` (this
-overwrites `../ALICE-ML/Cargo.toml` and the others).
+Every dependency comes from crates.io or by git, so a plain clone builds.
+`python3 scripts/feature_check.py` builds each optional feature on its own.
 
 ```sh
 cargo test                                           # unit + doc tests

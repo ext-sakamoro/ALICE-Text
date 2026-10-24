@@ -141,10 +141,8 @@ let result = engine.query(&["timestamps", "ipv4"], "log_levels", Op::Eq, "ERROR"
 | `ffi` | no | 圧縮・統計・エントロピー・台詞テーブルの C ABI (`extern "C"`)、C# / C++ のヘッダは `bindings/` |
 | `python` | no | PyO3 の module `alice_text` (maturin でビルド) |
 | `ml` | no | ALICE-ML への bridge: 学習済み重みによる 3 値の次 token スコア |
-| `voice` | no | ALICE-Voice への bridge: 音声符号化のヒント |
-| `search` | no | ALICE-Search への bridge: 圧縮テキストの検索 index |
 
-bridge の 4 feature は隣の checkout (`../ALICE-ML` など) への path 依存
+`ml` の bridge は ALICE-ML を固定した commit の git で取る 音声符号化のヒントと圧縮テキストの検索 index は ALICE-Voice と ALICE-Search (それぞれの `text` feature) にある
 
 ## 測定値
 
@@ -197,7 +195,7 @@ Rust 1.87 (`Cargo.toml` の `rust-version`) CI で既定 feature と `ffi` + `py
 
 ## ビルドとテスト
 
-bridge の feature は optional な path 依存だが、package の解決に manifest が要る 隣に clone するか、`bash .github/stub-siblings.sh` で空の manifest を作る (`../ALICE-ML/Cargo.toml` などを上書きする)
+依存はすべて crates.io か git から取るので、clone したままで build できる `python3 scripts/feature_check.py` は optional な feature を 1 つずつ build する
 
 ```sh
 cargo test                                           # unit + doc tests
