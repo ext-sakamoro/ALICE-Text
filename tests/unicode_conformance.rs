@@ -227,3 +227,12 @@ fn the_semantics_id_names_the_unicode_version_and_the_data() {
         .collect();
     assert_eq!(NORMALIZATION_SEMANTICS_ID.to_vec(), want);
 }
+
+// `is_combining` is usable in a const context (it was a `const fn` before the tables were generated): these are
+// evaluated at compile time
+#[test]
+fn is_combining_is_a_const_fn() {
+    const { assert!(alice_text::unicode_norm::is_combining('\u{0300}')) };
+    const { assert!(!alice_text::unicode_norm::is_combining('a')) };
+    const { assert!(alice_text::unicode_norm::is_combining('\u{1E94A}')) }; // the last range of the table
+}

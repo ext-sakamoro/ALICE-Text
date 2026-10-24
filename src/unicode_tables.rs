@@ -16,7 +16,7 @@ pub const NORMALIZATION_SEMANTICS_ID: [u8; 32] = [
 ];
 
 /// Canonical combining class, as (first, last, class) ranges sorted by code point (class 0 elsewhere).
-pub static CCC: &[(u32, u32, u8)] = &[
+pub const CCC: &[(u32, u32, u8)] = &[
     (0x00300, 0x00314, 230), (0x00315, 0x00315, 232), (0x00316, 0x00319, 220), (0x0031a, 0x0031a, 232),
     (0x0031b, 0x0031b, 216), (0x0031c, 0x00320, 220), (0x00321, 0x00322, 202), (0x00323, 0x00326, 220),
     (0x00327, 0x00328, 202), (0x00329, 0x00333, 220), (0x00334, 0x00338, 1), (0x00339, 0x0033c, 220),

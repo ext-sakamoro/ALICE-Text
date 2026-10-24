@@ -160,7 +160,7 @@ def generate() -> str:
         "];",
         "",
         "/// Canonical combining class, as (first, last, class) ranges sorted by code point (class 0 elsewhere).",
-        "pub static CCC: &[(u32, u32, u8)] = &[",
+        "pub const CCC: &[(u32, u32, u8)] = &[",
     ]
     rr = ranges(ccc)
     out += [f"    {', '.join(f'({a:#07x}, {b:#07x}, {c})' for a, b, c in rr[i:i + 4])}," for i in range(0, len(rr), 4)]

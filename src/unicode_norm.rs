@@ -32,26 +32,28 @@ const T_COUNT: u32 = 28;
 const N_COUNT: u32 = V_COUNT * T_COUNT;
 const S_COUNT: u32 = L_COUNT * N_COUNT;
 
-/// Canonical Combining Class (CCC) (表に無い文字は 0)
-fn combining_class(c: char) -> u8 {
+/// Canonical Combining Class (CCC) (表に無い文字は 0、`const` の二分探索)
+const fn combining_class(c: char) -> u8 {
     let cp = c as u32;
-    t::CCC
-        .binary_search_by(|&(first, last, _)| {
-            if last < cp {
-                core::cmp::Ordering::Less
-            } else if first > cp {
-                core::cmp::Ordering::Greater
-            } else {
-                core::cmp::Ordering::Equal
-            }
-        })
-        .map_or(0, |i| t::CCC[i].2)
+    let (mut lo, mut hi) = (0, t::CCC.len());
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let (first, last, class) = t::CCC[mid];
+        if last < cp {
+            lo = mid + 1;
+        } else if first > cp {
+            hi = mid;
+        } else {
+            return class;
+        }
+    }
+    0
 }
 
 /// 結合文字 (CCC > 0) かどうか。
 #[inline]
 #[must_use]
-pub fn is_combining(c: char) -> bool {
+pub const fn is_combining(c: char) -> bool {
     combining_class(c) > 0
 }
 
