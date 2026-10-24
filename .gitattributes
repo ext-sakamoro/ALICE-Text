@@ -1,0 +1,2 @@
+# the Unicode data files are read byte for byte (their hashes are part of the semantics id)
+data/ucd/** -text
