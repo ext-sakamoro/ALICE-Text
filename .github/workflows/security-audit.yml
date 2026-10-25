@@ -10,15 +10,6 @@ name: Security & Hygiene
 on:
   push:
     branches: [main, 'ci/**']
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'src/**'
-      - 'benches/**'
-      - 'fuzz/Cargo.toml'
-      - 'deny.toml'
-      - '.github/workflows/security-audit.yml'
-      - 'scripts/stub_guard.sh'
   pull_request:
     branches: [main]
     paths:
@@ -30,6 +21,7 @@ on:
       - 'deny.toml'
       - '.github/workflows/security-audit.yml'
       - 'scripts/stub_guard.sh'
+      - '.github/paths/security-audit.txt'
   schedule:
     # every Monday 09:00 UTC
     - cron: '0 9 * * 1'
@@ -44,7 +36,38 @@ env:
   CARGO_NET_RETRY: "5"
 
 jobs:
+  # which files changed: a new or force-pushed branch is compared with merge-base(origin/main),
+  # another push with before..after, a pull request with base...head; schedule and manual
+  # runs always run; any error runs (fail-closed) — scripts/changed_paths.py
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after || github.sha }}
+          CREATED: ${{ github.event.created }}
+          FORCED: ${{ github.event.forced }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 scripts/changed_paths.py decide --event "$EVENT"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --base "$PR_BASE" --head "$PR_HEAD"
+          --patterns-file .github/paths/security-audit.txt
+
   audit:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     name: cargo audit (RustSec advisories)
     runs-on: ubuntu-latest
     steps:
@@ -62,6 +85,8 @@ jobs:
         run: cargo audit --db "$RUNNER_TEMP/advisory-db" --deny yanked
 
   deny:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     name: cargo-deny (licenses + advisories + bans + sources)
     runs-on: ubuntu-latest
     steps:
@@ -75,6 +100,8 @@ jobs:
         run: cargo deny --all-features check all
 
   unused-deps:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     name: cargo-machete (unused dependencies)
     runs-on: ubuntu-latest
     steps:
@@ -87,9 +114,24 @@ jobs:
         run: cargo machete
 
   stub-guard:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     name: Stub / dbg guard (grep)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Detect todo! / unimplemented! / panic!(STUB) / dbg! in src/**
         run: scripts/stub_guard.sh
+
+  gate:
+    name: Gate
+    if: always()
+    needs: [changes, audit, deny, unused-deps, stub-guard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/changed_paths.py gate --needs-json "$NEEDS"
