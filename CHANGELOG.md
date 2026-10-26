@@ -52,6 +52,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - Encoder / decoder / tuned learner each carried a hand-copied tag table (4 copies); replaced by the single mapping above, guarded by exhaustive round-trip tests (13 variants, tags 13..=255 rejected)
 
 ### Security
+- 依存 `zstd` の要求を `0.13` から `0.14.3` に上げた (RUSTSEC-2026-0391: zstd 0.13.3 は reuse した context に中断した stream の data が残る、修正は 0.14.3 / RUSTSEC-2026-0398: zstd 0.13 系が引く zstd-safe 7.3.0 は `Seekable::decompress` が容量を超えた長さを設定する、修正は 8.2.0) この crate が使う `encode_all` / `stream::read::Decoder` の API は変わらず、試験は全件そのまま通る
 - `pyo3` 0.29 includes the fixes for RUSTSEC-2025-0020 and RUSTSEC-2026-0177 (`python` feature); RUSTSEC-2025-0141 (bincode 1.x unmaintained) is listed in `deny.toml` because bincode 1.x encodes the stored v2 / v3 formats
 
 ## [1.0.1] - 2026-03-04
