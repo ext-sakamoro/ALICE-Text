@@ -67,6 +67,10 @@ cargo clippy --all-targets -- -D warnings
 relint
 cargo clippy --all-targets --features ffi,python -- -D warnings
 
+step "ci.yml / clippy: alice-dup-check (no alice-* crate is linked twice in one build)"
+python3 scripts/alice_dup_check.py --self-test
+python3 scripts/alice_dup_check.py . fuzz
+
 step "ci.yml / clippy: each optional feature"
 python3 scripts/feature_check.py --self-test
 python3 scripts/feature_check.py --ci

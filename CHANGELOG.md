@@ -5,6 +5,7 @@ All notable changes to ALICE-Text will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- CI: 共有の `scripts/alice_dup_check.py` を持ち、同じ `alice-*` crate が 1 つの build に 2 つ link されないことを確かめる
 - `unicode_norm`: Unicode 16.0.0 normalization for the whole code space — `to_nfd` / `to_nfc` (existing) and the new `to_nfkd` / `to_nfkc` (full-width / half-width forms and other compatibility characters), with Hangul composed and decomposed arithmetically; `case_fold` (full default case folding, status C + F) and `case_fold_simple` (C + S); `UNICODE_VERSION` and `NORMALIZATION_SEMANTICS_ID` (SHA-256 of the version and the data files' hashes, so another Unicode version is another id)
 - `data/ucd/16.0.0/`: UnicodeData, CompositionExclusions, CaseFolding and NormalizationTest at 16.0.0 with `SHA256SUMS`, and the Unicode licence; `scripts/gen_unicode_tables.py` writes `src/unicode_tables.rs` from them after checking the hashes (`--check` compares); nothing is read from the platform's or the standard library's Unicode tables
 - `tests/unicode_conformance.rs`: every line of all six parts of NormalizationTest, every code point outside part 1 unchanged by the four forms, and full and simple folding of every scalar value against CaseFolding

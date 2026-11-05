@@ -59,6 +59,10 @@ jobs:
 
       - name: Check each optional feature
         run: python3 scripts/feature_check.py --ci
+      - name: alice-dup-check (tests of the checker)
+        run: python3 scripts/alice_dup_check.py --self-test
+      - name: alice-dup-check (no alice-* crate is linked twice in one build)
+        run: python3 scripts/alice_dup_check.py . fuzz
 
   # The declared `rust-version` compiled with exactly that toolchain. Bump
   # `rust-version` in Cargo.toml and the version below in the same commit.
