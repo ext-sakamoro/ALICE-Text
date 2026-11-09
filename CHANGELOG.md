@@ -21,6 +21,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - `README_JP.md` (renamed from `README_ja.md`)
 
 ### Changed
+- CI: `scripts/feature_check.py` が optional feature ごとの clippy に加えて `cargo test --lib --features <名前>` を走らせ、最後に全 feature を同時に有効にした clippy (`--all-targets`) と test を走らせる 一緒に有効にできない feature は `.github/feature-check-apart.txt` に理由付きで書く (self-test 16 通り)
 - 依存: `alice-zip` と `alice-ml` を固定 rev (`fec22a06…` / `d2ce77f1…`) でなく各 repository の main branch と版で引く 生成される lock は alice-det-math を 1 つ (git main) だけ持ち、crates.io の alice-* は 0
 - Licence: `MIT OR Apache-2.0` → `LicenseRef-Proprietary`
 - dependency: `alice-ml` (feature `ml`) comes by git at ALICE-ML commit `d2ce77f` (0.4.0) instead of the `../ALICE-ML` path sibling; `deny.toml` allows that git source
