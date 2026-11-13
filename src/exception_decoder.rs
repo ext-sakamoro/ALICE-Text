@@ -5,7 +5,6 @@
 use crate::exception_encoder::ExceptionHeader;
 use crate::pattern_learner::{PatternLearner, PatternMatch};
 use crate::{ALICETextError, Result, ALICE_TEXT_MAGIC, ALICE_TEXT_VERSION};
-use lzma_rs::lzma_decompress;
 
 /// Exception decoder
 pub struct ExceptionDecoder {
@@ -52,11 +51,19 @@ impl ExceptionDecoder {
         // Get compressed data
         let compressed_data = &data[42..];
 
-        // Decompress
-        let decompressed = self.decompress_lzma(compressed_data)?;
-
         // Check if pattern mode was used (pattern_db_length field used as flag)
         let use_pattern_mode = header.pattern_db_length == 1;
+
+        // Decompress, at most the length the header declares: the text itself in direct mode, the pattern table and
+        // the processed text in pattern mode (see `declared_payload_bound`)
+        let bound = declared_payload_bound(&header, use_pattern_mode);
+        let decompressed = self.decompress_lzma(compressed_data, bound)?;
+        if !use_pattern_mode && decompressed.len() != bound {
+            return Err(ALICETextError::DecompressionError(format!(
+                "the payload is {} bytes, the declared length is {bound}",
+                decompressed.len()
+            )));
+        }
 
         // Decode based on mode
         if use_pattern_mode {
@@ -163,14 +170,21 @@ impl ExceptionDecoder {
         Ok((pattern_matches, processed_text))
     }
 
-    /// Decompress LZMA data
+    /// Decompress LZMA data, producing at most `max_output` bytes (decoding stops there)
     #[allow(clippy::unused_self)]
-    fn decompress_lzma(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let mut decompressed = Vec::new();
-        lzma_decompress(&mut std::io::Cursor::new(data), &mut decompressed).map_err(|e| {
-            ALICETextError::DecompressionError(format!("LZMA decompression failed: {e}"))
-        })?;
-        Ok(decompressed)
+    fn decompress_lzma(&self, data: &[u8], max_output: usize) -> Result<Vec<u8>> {
+        alice_zip::compression::lzma_decompress(data, max_output).map_err(|e| {
+            if e.get_ref()
+                .and_then(|inner| inner.downcast_ref::<alice_zip::compression::DecompressError>())
+                .is_some()
+            {
+                ALICETextError::DecompressionError(format!(
+                    "the payload expands past its declared length {max_output}"
+                ))
+            } else {
+                ALICETextError::DecompressionError(format!("LZMA decompression failed: {e}"))
+            }
+        })
     }
 
     /// Get header from compressed data
@@ -226,6 +240,19 @@ impl Default for ExceptionDecoder {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// The most bytes a v1 payload can decompress to, from its header: in direct mode the text (`original_length`); in
+/// pattern mode the table and the processed text, `8 + 2 * original_length + 24 * exception_count` (a match is 11
+/// bytes of fields plus its text, a part of the original; its placeholder `{P<i>}` is at most 13 bytes), saturating
+fn declared_payload_bound(header: &ExceptionHeader, pattern_mode: bool) -> usize {
+    let text = u64::from(header.original_length);
+    let bound = if pattern_mode {
+        8 + 2 * text + 24 * u64::from(header.exception_count)
+    } else {
+        text
+    };
+    usize::try_from(bound).unwrap_or(usize::MAX)
 }
 
 #[cfg(test)]

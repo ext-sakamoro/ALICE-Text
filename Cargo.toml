@@ -33,7 +33,7 @@ zstd = { version = "0.14.3", features = ["thin"] }  # thin機能でバイナリ�
 # --- Law types (Provenance / IngestPolicy / LawError) ---
 # git + branch main: every ALICE repo takes alice-zip by this same source string, so one build links one
 # alice-zip (a path in one repo and git in another would be two packages); the lock records the commit
-alice-zip = { git = "https://github.com/ext-sakamoro/ALICE-Zip", branch = "main", version = "0.11", default-features = false }
+alice-zip = { git = "https://github.com/ext-sakamoro/ALICE-Zip", branch = "main", version = "0.12", default-features = false, features = ["lzma"] }
 
 # --- Regex ---
 regex = "1.10"
