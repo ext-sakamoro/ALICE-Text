@@ -176,6 +176,19 @@ impl ColumnEntry {
 /// end of the input; I/O errors of the reader.
 fn read_column_bytes<R: Read + Seek>(reader: &mut R, entry: &ColumnEntry) -> Result<Vec<u8>> {
     let input_len = reader.seek(SeekFrom::End(0))?;
+    check_column_range(entry, input_len)?;
+    reader.seek(SeekFrom::Start(entry.offset))?;
+    let mut compressed = vec![0u8; entry.compressed_size as usize];
+    reader.read_exact(&mut compressed)?;
+    Ok(compressed)
+}
+
+/// A column's bytes (offset and compressed size, from the input) lie within the input
+///
+/// # Errors
+///
+/// [`ALICETextError::DecompressionError`] when they reach past the end of the input.
+fn check_column_range(entry: &ColumnEntry, input_len: u64) -> Result<()> {
     let fits = entry
         .offset
         .checked_add(u64::from(entry.compressed_size))
@@ -188,10 +201,25 @@ fn read_column_bytes<R: Read + Seek>(reader: &mut R, entry: &ColumnEntry) -> Res
             entry.compressed_size
         )));
     }
-    reader.seek(SeekFrom::Start(entry.offset))?;
-    let mut compressed = vec![0u8; entry.compressed_size as usize];
-    reader.read_exact(&mut compressed)?;
-    Ok(compressed)
+    Ok(())
+}
+
+/// The columns' byte ranges, then their recorded sizes, are checked before anything is read or decoded: the ranges
+/// against the input, the sizes against `limit` ([`file_budget`]); returns the budget for the decode
+///
+/// # Errors
+///
+/// As [`check_column_range`] and [`file_budget`].
+fn check_columns<'a, R: Seek>(
+    reader: &mut R,
+    entries: impl Iterator<Item = &'a ColumnEntry> + Clone,
+    limit: u64,
+) -> Result<u64> {
+    let input_len = reader.seek(SeekFrom::End(0))?;
+    for e in entries.clone() {
+        check_column_range(e, input_len)?;
+    }
+    file_budget(entries, limit)
 }
 
 /// The size a column records: its decompressed length, refused above the limit of one decode (256 MiB) so that
@@ -223,7 +251,7 @@ fn recorded_column_size(col_type: ColumnType, len: usize) -> Result<u32> {
 ///
 /// [`ALICETextError::DecompressionError`] when the column expands past its
 /// limit or to a size other than the recorded one.
-fn decode_column(compressed: &[u8], entry: &ColumnEntry) -> Result<Vec<u8>> {
+fn decode_column(compressed: &[u8], entry: &ColumnEntry, budget: &mut u64) -> Result<Vec<u8>> {
     let what = format!("column {}", entry.col_type.name());
     // the recorded size comes from the input: above the limit of one decode it is refused before decoding (the
     // writer never records more, see `recorded_column_size`)
@@ -234,11 +262,68 @@ fn decode_column(compressed: &[u8], entry: &ColumnEntry) -> Result<Vec<u8>> {
             crate::bounded_decode::UNRECORDED_LIMIT
         )));
     }
-    if entry.uncompressed_size == 0 {
-        crate::bounded_decode::decode(compressed, crate::bounded_decode::UNRECORDED_LIMIT, &what)
+    let out = if entry.uncompressed_size == 0 {
+        // a column of an earlier version records no size: what is left of the file's limit also bounds it
+        let limit = crate::bounded_decode::UNRECORDED_LIMIT.min(*budget);
+        crate::bounded_decode::decode(compressed, limit, &what).map_err(|e| match e {
+            ALICETextError::DecompressionError(m)
+                if limit < crate::bounded_decode::UNRECORDED_LIMIT =>
+            {
+                ALICETextError::DecompressionError(format!(
+                    "{m} (what is left of the file's limit)"
+                ))
+            }
+            other => other,
+        })?
     } else {
-        crate::bounded_decode::decode_exact(compressed, u64::from(entry.uncompressed_size), &what)
+        crate::bounded_decode::decode_exact(compressed, u64::from(entry.uncompressed_size), &what)?
+    };
+    *budget = budget.saturating_sub(out.len() as u64);
+    Ok(out)
+}
+
+/// The budget for decoding `entries` under `limit`: the sizes they record together must be within it (checked before
+/// anything is decoded, as the sizes come from the input); what is left bounds the columns that record no size
+///
+/// # Errors
+///
+/// [`ALICETextError::DecompressionError`] when the recorded sizes add up to more than `limit`.
+fn file_budget<'a>(entries: impl Iterator<Item = &'a ColumnEntry>, limit: u64) -> Result<u64> {
+    let mut recorded = 0u64;
+    for e in entries {
+        // a single column above the limit of one decode is named as such (also checked in `decode_column`)
+        if u64::from(e.uncompressed_size) > crate::bounded_decode::UNRECORDED_LIMIT {
+            return Err(ALICETextError::DecompressionError(format!(
+                "column {} records {} bytes, above the limit of one decode ({} bytes)",
+                e.col_type.name(),
+                e.uncompressed_size,
+                crate::bounded_decode::UNRECORDED_LIMIT
+            )));
+        }
+        recorded += u64::from(e.uncompressed_size);
     }
+    if recorded > limit {
+        return Err(ALICETextError::DecompressionError(format!(
+            "the columns record {recorded} bytes in total, above the file's limit {limit}"
+        )));
+    }
+    Ok(limit - recorded)
+}
+
+/// The decompressed columns a writer is about to record must fit the default file limit, so that every file written
+/// here reads back with the default
+///
+/// # Errors
+///
+/// [`ALICETextError::EncodingError`] when they add up to more than [`crate::V3_FILE_LIMIT`].
+fn check_written_total(total: u64) -> Result<()> {
+    let limit = crate::bounded_decode::V3_FILE_LIMIT;
+    if total > limit {
+        return Err(ALICETextError::EncodingError(format!(
+            "the columns of this text decompress to {total} bytes, above the {limit}-byte limit of one file"
+        )));
+    }
+    Ok(())
 }
 
 /// Format v3 header
@@ -572,6 +657,8 @@ impl FormatV3Writer {
             payload.timestamps.raw.len() as u32,
         )?;
 
+        check_written_total(column_data.iter().map(|(_, _, u, _)| u64::from(*u)).sum())?;
+
         // Calculate offsets
         let header_start = 8 + 2; // Magic + Version
         let directory_start = header_start + FormatV3Header::SIZE;
@@ -631,11 +718,21 @@ impl FormatV3Writer {
     ///
     /// Returns an error if metadata reading or column decompression fails.
     pub fn decompress(data: &[u8]) -> Result<String> {
+        Self::decompress_with_limit(data, crate::bounded_decode::V3_FILE_LIMIT)
+    }
+
+    /// [`Self::decompress`] with `limit` as the most bytes the file's columns may decompress to together (the default
+    /// is [`crate::V3_FILE_LIMIT`], 1 GiB); recorded sizes above it are refused before decoding
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if metadata reading or column decompression fails, or the columns ask for more than `limit`.
+    pub fn decompress_with_limit(data: &[u8], limit: u64) -> Result<String> {
         let mut cursor = Cursor::new(data);
         let metadata = FormatV3Metadata::read_from(&mut cursor)?;
 
         // Read all columns and reconstruct payload
-        let payload = Self::read_all_columns(&mut cursor, &metadata)?;
+        let payload = Self::read_all_columns(&mut cursor, &metadata, limit)?;
 
         Ok(payload.restore())
     }
@@ -651,12 +748,17 @@ impl FormatV3Writer {
         column_types: &[ColumnType],
     ) -> Result<PartialPayload> {
         let mut partial = PartialPayload::default();
+        let mut budget = check_columns(
+            reader,
+            column_types.iter().filter_map(|t| metadata.get_column(*t)),
+            crate::bounded_decode::V3_FILE_LIMIT,
+        )?;
 
         for col_type in column_types {
             if let Some(entry) = metadata.get_column(*col_type) {
                 let compressed = read_column_bytes(reader, entry)?;
 
-                let decompressed = decode_column(&compressed, entry)?;
+                let decompressed = decode_column(&compressed, entry, &mut budget)?;
 
                 match col_type {
                     ColumnType::LogLevels => {
@@ -722,7 +824,9 @@ impl FormatV3Writer {
     fn read_all_columns<R: Read + Seek>(
         reader: &mut R,
         metadata: &FormatV3Metadata,
+        limit: u64,
     ) -> Result<ColumnarPayload> {
+        let mut budget = check_columns(reader, metadata.columns.iter(), limit)?;
         let mut skeleton_tokens = Vec::new();
         let mut placeholder_map = Vec::new();
         let mut timestamps = TimestampColumn::default();
@@ -745,7 +849,7 @@ impl FormatV3Writer {
         for entry in &metadata.columns {
             let compressed = read_column_bytes(reader, entry)?;
 
-            let decompressed = decode_column(&compressed, entry)?;
+            let decompressed = decode_column(&compressed, entry, &mut budget)?;
 
             match entry.col_type {
                 ColumnType::Skeleton => {
@@ -935,6 +1039,16 @@ impl PartialPayload {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_text_whose_columns_pass_the_file_limit_is_not_written() {
+        let limit = crate::V3_FILE_LIMIT;
+        assert!(check_written_total(limit).is_ok());
+        assert!(matches!(
+            check_written_total(limit + 1),
+            Err(ALICETextError::EncodingError(m)) if m.contains("limit of one file")
+        ));
+    }
+
     #[test]
     fn a_column_above_the_limit_of_one_decode_is_not_written() {
         // the size check alone (writing a 256 MiB column would allocate it): the limit is accepted, one byte more is not

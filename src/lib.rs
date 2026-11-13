@@ -69,6 +69,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 pub mod arithmetic_coder;
 mod bounded_decode;
+pub use bounded_decode::V3_FILE_LIMIT;
 pub mod entropy_estimator;
 pub mod exception_decoder;
 pub mod exception_encoder;
@@ -121,8 +122,8 @@ pub use format_v3::{
     PartialPayload, FORMAT_V3_VERSION,
 };
 pub use query_engine::{
-    compress_v3, decompress_v3, BufferSource, ColumnStats, FileStats, MmapSource, Op, QueryBuilder,
-    QueryEngine, QueryResult, QueryRow, QuerySource,
+    compress_v3, decompress_v3, decompress_v3_with_limit, BufferSource, ColumnStats, FileStats,
+    MmapSource, Op, QueryBuilder, QueryEngine, QueryResult, QueryRow, QuerySource,
 };
 
 pub use unicode_norm::{

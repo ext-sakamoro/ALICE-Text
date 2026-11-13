@@ -22,6 +22,12 @@ use std::io::Read;
 /// Limit for streams whose decompressed size is not recorded (256 MiB)
 pub const UNRECORDED_LIMIT: u64 = 256 * 1024 * 1024;
 
+/// Default limit for all decompressed columns of one format v3 file together (1 GiB)
+///
+/// Four times the limit of one decode: each column is within 256 MiB (the limit of one decode), and a file of many columns still
+/// cannot ask for more than this.
+pub const V3_FILE_LIMIT: u64 = 4 * UNRECORDED_LIMIT;
+
 /// Decodes `compressed`, failing as soon as the output would exceed `limit`
 ///
 /// # Errors
