@@ -55,6 +55,7 @@ All notable changes to ALICE-Text will be documented in this file.
 - Encoder / decoder / tuned learner each carried a hand-copied tag table (4 copies); replaced by the single mapping above, guarded by exhaustive round-trip tests (13 variants, tags 13..=255 rejected)
 
 ### Security
+- format v3 の列が記録する展開後の長さ (入力から来る値、最大 4 GiB) は 256 MiB (1 回の展開の上限、記録の無い stream と同じ) までを受け、超える記録は展開の前に拒む 書き手もその上限を超える列を書かない (この版が書いた file は必ず読める) 以前は記録の長さだけが上限だった 試験 `tests/expansion_limits.rs` と `format_v3` の単体試験 (読み手 / 書き手の上限を外すと各 1 本が red)
 - `deny.toml` の許可に BSD-2-Clause を足した (`zstd-sys` 2.1.3 = 同梱の zstd 1.5.7 が "BSD-3-Clause AND BSD-2-Clause" を宣言、lock を持たない CI の解決が新しい版を取って cargo-deny が拒んだ)
 - v1 (LZMA) の読み手は header が示す長さまでしか展開しない: direct は `original_length` ちょうど (超える展開は途中で止め、足りない payload も拒む)、pattern は `8 + 2 * original_length + 24 * exception_count` まで header の値は入力から来るので、decoder 自身の上限 (既定 256 MiB = この crate の 1 回の展開の上限、`ExceptionDecoder::with_max_output` で変える) を超える宣言は展開の前に拒む 以前は上限なしに展開した (小さな file が任意の大きさに伸びた) 展開は ALICE-Zip 0.12 の上限付き `compression::lzma_decompress` (依存 alice-zip を 0.12、feature `lzma`) 試験 `tests/v1_expansion_limits.rs` (上限を外すと bomb の 2 本、ちょうどの検査を外すと短い payload の 1 本が red)
 - 依存 `zstd` の要求を `0.13` から `0.14.3` に上げた (RUSTSEC-2026-0391: zstd 0.13.3 は reuse した context に中断した stream の data が残る、修正は 0.14.3 / RUSTSEC-2026-0398: zstd 0.13 系が引く zstd-safe 7.3.0 は `Seekable::decompress` が容量を超えた長さを設定する、修正は 8.2.0) この crate が使う `encode_all` / `stream::read::Decoder` の API は変わらず、試験は全件そのまま通る

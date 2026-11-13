@@ -194,6 +194,23 @@ fn read_column_bytes<R: Read + Seek>(reader: &mut R, entry: &ColumnEntry) -> Res
     Ok(compressed)
 }
 
+/// The size a column records: its decompressed length, refused above the limit of one decode (256 MiB) so that
+/// every file written here can be read back (readers refuse a larger recorded size before decoding)
+///
+/// # Errors
+///
+/// [`ALICETextError::EncodingError`] for a column above the limit.
+fn recorded_column_size(col_type: ColumnType, len: usize) -> Result<u32> {
+    let limit = crate::bounded_decode::UNRECORDED_LIMIT;
+    match u32::try_from(len) {
+        Ok(n) if u64::from(n) <= limit => Ok(n),
+        _ => Err(ALICETextError::EncodingError(format!(
+            "column {} of {len} bytes exceeds the {limit}-byte limit of one decode",
+            col_type.name()
+        ))),
+    }
+}
+
 /// Decompresses one column within its recorded size
 ///
 /// A column written by this version records its decompressed size and must
@@ -208,6 +225,15 @@ fn read_column_bytes<R: Read + Seek>(reader: &mut R, entry: &ColumnEntry) -> Res
 /// limit or to a size other than the recorded one.
 fn decode_column(compressed: &[u8], entry: &ColumnEntry) -> Result<Vec<u8>> {
     let what = format!("column {}", entry.col_type.name());
+    // the recorded size comes from the input: above the limit of one decode it is refused before decoding (the
+    // writer never records more, see `recorded_column_size`)
+    if u64::from(entry.uncompressed_size) > crate::bounded_decode::UNRECORDED_LIMIT {
+        return Err(ALICETextError::DecompressionError(format!(
+            "{what} records {} bytes, above the limit of one decode ({} bytes)",
+            entry.uncompressed_size,
+            crate::bounded_decode::UNRECORDED_LIMIT
+        )));
+    }
     if entry.uncompressed_size == 0 {
         crate::bounded_decode::decode(compressed, crate::bounded_decode::UNRECORDED_LIMIT, &what)
     } else {
@@ -387,13 +413,7 @@ impl FormatV3Writer {
                 || col_type == ColumnType::PlaceholderMap
             {
                 // recorded in the column entry; readers decode no further
-                let uncompressed = u32::try_from(data.len()).map_err(|_| {
-                    ALICETextError::EncodingError(format!(
-                        "column {} of {} bytes exceeds the u32 size field",
-                        col_type.name(),
-                        data.len()
-                    ))
-                })?;
+                let uncompressed = recorded_column_size(col_type, data.len())?;
                 let compressed = zstd::stream::encode_all(Cursor::new(data), zstd_level)
                     .map_err(|e| ALICETextError::EncodingError(format!("Zstd error: {e}")))?;
                 column_data.push((col_type, compressed, uncompressed, count));
@@ -915,6 +935,21 @@ impl PartialPayload {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_column_above_the_limit_of_one_decode_is_not_written() {
+        // the size check alone (writing a 256 MiB column would allocate it): the limit is accepted, one byte more is not
+        let limit = usize::try_from(crate::bounded_decode::UNRECORDED_LIMIT).unwrap();
+        assert_eq!(
+            recorded_column_size(ColumnType::Skeleton, limit).unwrap(),
+            u32::try_from(limit).unwrap()
+        );
+        assert!(matches!(
+            recorded_column_size(ColumnType::Skeleton, limit + 1),
+            Err(ALICETextError::EncodingError(m)) if m.contains("limit of one decode")
+        ));
+        assert!(recorded_column_size(ColumnType::Skeleton, 0).is_ok());
+    }
+
     use super::*;
 
     #[test]

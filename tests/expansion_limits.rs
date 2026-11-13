@@ -194,3 +194,26 @@ fn dialogue_bomb_stops_at_the_fixed_limit() {
         "expands past 268435456"
     ));
 }
+
+/// The recorded size comes from the input: a size above the limit of one decode (256 MiB, the same as for streams
+/// without a recorded size) is refused before the column is decoded, whatever the stream holds
+#[test]
+fn v3_recorded_size_above_the_limit_is_refused_before_decoding() {
+    let mut compared = 0;
+    for recorded in [UNRECORDED_LIMIT as u32 + 1, 300 << 20, u32::MAX] {
+        let (mut data, i, _, _) = v3_with_last_column();
+        entry_field(&mut data, i, UNCOMPRESSED_AT, recorded);
+        let r = decompress_v3(&data);
+        assert!(
+            is_err_with(&r, "above the limit of one decode"),
+            "{recorded}: {r:?}"
+        );
+        compared += 1;
+    }
+    // exactly the limit is not refused for its size (it fails later, as the stream is far shorter)
+    let (mut data, i, _, _) = v3_with_last_column();
+    entry_field(&mut data, i, UNCOMPRESSED_AT, UNRECORDED_LIMIT as u32);
+    let r = decompress_v3(&data);
+    assert!(!is_err_with(&r, "above the limit of one decode"), "{r:?}");
+    assert_eq!(compared, 3);
+}

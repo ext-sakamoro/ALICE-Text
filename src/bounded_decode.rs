@@ -5,7 +5,9 @@
 //! decoders never read past a limit:
 //!
 //! * format v3 records the decompressed size of each column; that size is the
-//!   limit and the stream must expand to exactly it
+//!   limit and the stream must expand to exactly it. The recorded size comes
+//!   from the input, so one above 256 MiB (the limit below) is refused before
+//!   decoding, and the writer never records more
 //! * format v2, dialogue / localization tables and v3 columns written by
 //!   earlier versions (recorded size 0) carry no size, so a fixed limit of
 //!   256 MiB per stream applies. A stream holds one bincode payload of one
