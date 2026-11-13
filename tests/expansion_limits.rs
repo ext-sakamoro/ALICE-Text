@@ -15,8 +15,9 @@
 
 use alice_text::format_v3::{ColumnEntry, FormatV3Header, FormatV3Metadata};
 use alice_text::{
-    compress_tuned, compress_v3, decompress_tuned, decompress_v3, ALICETextError, CompressionLevel,
-    CompressionMode, DialogueCompressionMode, DialogueCompressor, DialogueEntry, DialogueTable,
+    compress_tuned, compress_v3, decompress_tuned, decompress_v3, decompress_v3_with_limit,
+    ALICETextError, CompressionLevel, CompressionMode, DialogueCompressionMode, DialogueCompressor,
+    DialogueEntry, DialogueTable,
 };
 use std::io::{Cursor, Write};
 
@@ -216,4 +217,71 @@ fn v3_recorded_size_above_the_limit_is_refused_before_decoding() {
     let r = decompress_v3(&data);
     assert!(!is_err_with(&r, "above the limit of one decode"), "{r:?}");
     assert_eq!(compared, 3);
+}
+
+/// Patches every column's recorded size to `size` (the streams are unchanged)
+fn v3_with_every_recorded_size(size: u32) -> Vec<u8> {
+    let mut data = compress_v3(&sample_text(), CompressionLevel::Balanced).unwrap();
+    let n = FormatV3Metadata::read_from(&mut Cursor::new(&data))
+        .unwrap()
+        .columns
+        .len();
+    for i in 0..n {
+        entry_field(&mut data, i, UNCOMPRESSED_AT, size);
+    }
+    data
+}
+
+/// The recorded sizes are each within the limit of one decode, but together they ask for more than the file's limit
+/// (1 GiB by default): refused before any column is decoded
+#[test]
+fn v3_recorded_sizes_that_sum_past_the_file_limit_are_refused_before_decoding() {
+    let n = FormatV3Metadata::read_from(&mut Cursor::new(
+        &compress_v3(&sample_text(), CompressionLevel::Balanced).unwrap(),
+    ))
+    .unwrap()
+    .columns
+    .len() as u64;
+    let per = UNRECORDED_LIMIT as u32; // each column at the per-column limit
+    assert!(
+        n * u64::from(per) > 1 << 30,
+        "the sample has enough columns: {n}"
+    );
+    let r = decompress_v3(&v3_with_every_recorded_size(per));
+    assert!(is_err_with(&r, "above the file's limit"), "{r:?}");
+}
+
+#[test]
+fn v3_the_file_limit_is_the_callers() {
+    // exactly the recorded total reads back; one byte less is refused before decoding (shown with a corrupted stream,
+    // which a decode would report as a Zstd error)
+    let data = compress_v3(&sample_text(), CompressionLevel::Balanced).unwrap();
+    let meta = FormatV3Metadata::read_from(&mut Cursor::new(&data)).unwrap();
+    let total: u64 = meta
+        .columns
+        .iter()
+        .map(|e| u64::from(e.uncompressed_size))
+        .sum();
+    assert_eq!(
+        decompress_v3_with_limit(&data, total).unwrap(),
+        sample_text()
+    );
+    let mut corrupt = data;
+    let first = meta.columns.iter().min_by_key(|e| e.offset).unwrap();
+    corrupt[first.offset as usize] ^= 0xFF;
+    let r = decompress_v3_with_limit(&corrupt, total - 1);
+    assert!(is_err_with(&r, "above the file's limit"), "{r:?}");
+}
+
+#[test]
+fn v3_columns_without_recorded_sizes_share_the_file_limit() {
+    // earlier versions recorded no sizes (0): what is left of the file's limit bounds each such column as it decodes
+    let data = v3_with_every_recorded_size(0);
+    let text_len = sample_text().len() as u64;
+    let r = decompress_v3_with_limit(&data, 16);
+    assert!(is_err_with(&r, "what is left of the file's limit"), "{r:?}");
+    assert_eq!(
+        decompress_v3_with_limit(&data, 64 * text_len).unwrap(),
+        sample_text()
+    );
 }

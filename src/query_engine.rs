@@ -833,6 +833,16 @@ pub fn decompress_v3(data: &[u8]) -> Result<String> {
     FormatV3Writer::decompress(data)
 }
 
+/// [`decompress_v3`] with `limit` as the most bytes the file's columns may decompress to together (the default is
+/// [`crate::V3_FILE_LIMIT`], 1 GiB); recorded sizes above it are refused before decoding
+///
+/// # Errors
+///
+/// Returns an error if decompression fails or the columns ask for more than `limit`.
+pub fn decompress_v3_with_limit(data: &[u8], limit: u64) -> Result<String> {
+    FormatV3Writer::decompress_with_limit(data, limit)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
