@@ -101,7 +101,8 @@ fn a_pattern_payload_past_its_bound_is_refused() {
 fn the_v1_writer_output_still_reads_back_in_both_modes() {
     // the bounds hold for what the writer produces: text with patterns (pattern mode when smaller) and without
     let samples = [
-        "2026-11-13 10:00:01 INFO 192.168.0.1 GET /a\n2026-11-13 10:00:02 INFO 192.168.0.2 GET /b\n".repeat(40),
+        "2026-11-13 10:00:01 INFO 192.0.2.1 GET /a\n2026-11-13 10:00:02 INFO 192.0.2.2 GET /b\n"
+            .repeat(40),
         "plain words without any pattern at all, repeated. ".repeat(20),
     ];
     let mut compared = 0;
