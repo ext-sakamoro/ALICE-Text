@@ -63,6 +63,7 @@ name = "alice-text"
 path = "src/bin/alice_text.rs"
 
 [dev-dependencies]
+sha2 = "0.10"
 criterion = "0.5"
 tempfile = "3.10"
 

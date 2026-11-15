@@ -98,6 +98,9 @@ pub mod word_list;
 // Line-skeleton predictor kept as a law (exception rate as its residual)
 pub mod law;
 
+#[cfg(test)]
+mod bincode1_fixtures;
+
 pub use arithmetic_coder::{ArithmeticDecoder, ArithmeticEncoder};
 pub use entropy_estimator::{EntropyEstimate, EntropyEstimator};
 pub use exception_decoder::ExceptionDecoder;
