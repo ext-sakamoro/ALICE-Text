@@ -5,6 +5,8 @@ All notable changes to ALICE-Text will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `tests/fixtures/bincode1/`: 全ての v3 列を埋める log について、v2 の payload・v3 の各列・対話表・map を key の順にした多言語表の byte と、保存した v2 / v3 / 対話 / 多言語の file を bincode 1.3.3 で書いたもの (`SHA256SUMS` 付き) 今書く byte がこれと同じこと、これらの file が読めること、同じ入力を同じ process で 8 回・別の process で書いても同じ byte になることを試験で固定する
+- CI: `scripts/no_bincode_in_graph.sh` が依存 graph (全 feature・全 target) に bincode が入ると落ちる (graph が 0 package でも落ちる)
 - CI: 共有の `scripts/alice_dup_check.py` を持ち、同じ `alice-*` crate が 1 つの build に 2 つ link されないことを確かめる
 - `unicode_norm`: Unicode 16.0.0 normalization for the whole code space — `to_nfd` / `to_nfc` (existing) and the new `to_nfkd` / `to_nfkc` (full-width / half-width forms and other compatibility characters), with Hangul composed and decomposed arithmetically; `case_fold` (full default case folding, status C + F) and `case_fold_simple` (C + S); `UNICODE_VERSION` and `NORMALIZATION_SEMANTICS_ID` (SHA-256 of the version and the data files' hashes, so another Unicode version is another id)
 - `data/ucd/16.0.0/`: UnicodeData, CompositionExclusions, CaseFolding and NormalizationTest at 16.0.0 with `SHA256SUMS`, and the Unicode licence; `scripts/gen_unicode_tables.py` writes `src/unicode_tables.rs` from them after checking the hashes (`--check` compares); nothing is read from the platform's or the standard library's Unicode tables
@@ -21,6 +23,9 @@ All notable changes to ALICE-Text will be documented in this file.
 - `README_JP.md` (renamed from `README_ja.md`)
 
 ### Changed
+- Breaking (3.0.0): `DeltaTable::entries` は `BTreeMap<u32, DialogueEntry>`、`LocalizationTable::locale_deltas` は `BTreeMap<LocaleId, DeltaTable>` (以前は `HashMap`) 多言語表は実行や process によらず同じ byte に書かれる (以前は hash の順で書くたびに変わった) 以前に書いた file はそのまま読める `LocaleId` は `PartialOrd` / `Ord`、`DeltaTable::new` は `const`
+- 依存: bincode 1.3 を外し、保存する payload (v2 の payload、v3 の列、対話表、多言語表) は `alice-serial` (git、branch main、feature `serde`) の `bincode1` で読み書きする 書く byte は bincode 1.3.3 と同じ 読む時は payload の後ろに残る byte を拒む (bincode 1 は無視していた、各 stream は payload 1 つだけを持つ)
+- `deny.toml`: RUSTSEC-2025-0141 (bincode unmaintained) の除外を外し、git source に ALICE-Serial を足した
 - CI: `scripts/feature_check.py` が optional feature ごとの clippy に加えて `cargo test --lib --features <名前>` を走らせ、最後に全 feature を同時に有効にした clippy (`--all-targets`) と test を走らせる 一緒に有効にできない feature は `.github/feature-check-apart.txt` に理由付きで書く (self-test 16 通り)
 - 依存: `alice-zip` と `alice-ml` を固定 rev (`fec22a06…` / `d2ce77f1…`) でなく各 repository の main branch と版で引く 生成される lock は alice-det-math を 1 つ (git main) だけ持ち、crates.io の alice-* は 0
 - Licence: `MIT OR Apache-2.0` → `LicenseRef-Proprietary`

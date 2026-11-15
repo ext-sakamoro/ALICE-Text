@@ -10,7 +10,7 @@
 //! License: LicenseRef-Proprietary
 //! Author: Moroya Sakamoto
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +34,7 @@ fn fnv1a(data: &[u8]) -> u64 {
 // ── Locale ─────────────────────────────────────────────────────
 
 /// Language identifier (newtype over u16)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct LocaleId(pub u16);
 
 impl LocaleId {
@@ -250,17 +250,17 @@ pub struct DeltaTable {
     /// Target locale
     pub locale: LocaleId,
     /// Overridden entries (keyed by dialogue ID)
-    pub entries: HashMap<u32, DialogueEntry>,
+    pub entries: BTreeMap<u32, DialogueEntry>,
     /// Content hash
     pub content_hash: u64,
 }
 
 impl DeltaTable {
     #[must_use]
-    pub fn new(locale: LocaleId) -> Self {
+    pub const fn new(locale: LocaleId) -> Self {
         Self {
             locale,
-            entries: HashMap::new(),
+            entries: BTreeMap::new(),
             content_hash: 0,
         }
     }
@@ -312,7 +312,7 @@ pub struct LocalizationTable {
     /// Base dialogue table
     pub base_table: DialogueTable,
     /// Per-locale delta tables
-    pub locale_deltas: HashMap<LocaleId, DeltaTable>,
+    pub locale_deltas: BTreeMap<LocaleId, DeltaTable>,
 }
 
 impl LocalizationTable {
@@ -321,7 +321,7 @@ impl LocalizationTable {
         Self {
             base_locale,
             base_table: DialogueTable::new(),
-            locale_deltas: HashMap::new(),
+            locale_deltas: BTreeMap::new(),
         }
     }
 
@@ -412,7 +412,7 @@ impl DialogueCompressor {
     ///
     /// Returns an error if serialization or Zstd compression fails.
     pub fn compress_table(&self, table: &DialogueTable) -> crate::Result<Vec<u8>> {
-        let serialized = bincode::serialize(table)
+        let serialized = crate::wire::encode(table)
             .map_err(|e| crate::ALICETextError::EncodingError(e.to_string()))?;
         crate::bounded_decode::check_unrecorded_payload(serialized.len(), "dialogue table")?;
         let mut output = Vec::with_capacity(serialized.len() + 12);
@@ -460,7 +460,7 @@ impl DialogueCompressor {
             crate::bounded_decode::UNRECORDED_LIMIT,
             "dialogue table",
         )?;
-        let mut table: DialogueTable = bincode::deserialize(&decompressed)
+        let mut table: DialogueTable = crate::wire::decode(&decompressed)
             .map_err(|e| crate::ALICETextError::DecompressionError(e.to_string()))?;
         table.speakers.rebuild_index();
         Ok(table)
@@ -472,7 +472,7 @@ impl DialogueCompressor {
     ///
     /// Returns an error if serialization or Zstd compression fails.
     pub fn compress_localization(&self, table: &LocalizationTable) -> crate::Result<Vec<u8>> {
-        let serialized = bincode::serialize(table)
+        let serialized = crate::wire::encode(table)
             .map_err(|e| crate::ALICETextError::EncodingError(e.to_string()))?;
         crate::bounded_decode::check_unrecorded_payload(serialized.len(), "dialogue table")?;
         let mut output = Vec::with_capacity(serialized.len() + 12);
@@ -520,7 +520,7 @@ impl DialogueCompressor {
             crate::bounded_decode::UNRECORDED_LIMIT,
             "localization table",
         )?;
-        let mut table: LocalizationTable = bincode::deserialize(&decompressed)
+        let mut table: LocalizationTable = crate::wire::decode(&decompressed)
             .map_err(|e| crate::ALICETextError::DecompressionError(e.to_string()))?;
         table.base_table.speakers.rebuild_index();
         Ok(table)

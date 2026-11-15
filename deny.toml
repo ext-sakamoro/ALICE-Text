@@ -19,12 +19,7 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 version = 2
 yanked = "deny"
-ignore = [
-    # bincode 1.x is unmaintained (no upgrade path). The v2 tuned format and
-    # the v3 columns are bincode 1.x encodings, so replacing it is a change of
-    # the on-disk format, not a dependency bump.
-    { id = "RUSTSEC-2025-0141", reason = "bincode 1.x defines the stored v2 / v3 formats" },
-]
+ignore = []
 
 # ---------------------------------------------------------------------------
 # Licenses (allow list)
@@ -71,6 +66,6 @@ skip-tree = []
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-# ALICE-ML and ALICE-Zip, exactly (git + branch main in Cargo.toml), and ALICE-DetMath, which
-# alice-zip and alice-ml take from git main
-allow-git = ["https://github.com/ext-sakamoro/ALICE-DetMath", "https://github.com/ext-sakamoro/ALICE-ML", "https://github.com/ext-sakamoro/ALICE-Zip"]
+# ALICE-ML, ALICE-Serial and ALICE-Zip, exactly (git + branch main in Cargo.toml), and
+# ALICE-DetMath, which alice-zip and alice-ml take from git main
+allow-git = ["https://github.com/ext-sakamoro/ALICE-DetMath", "https://github.com/ext-sakamoro/ALICE-ML", "https://github.com/ext-sakamoro/ALICE-Serial", "https://github.com/ext-sakamoro/ALICE-Zip"]

@@ -97,6 +97,7 @@ pub mod word_list;
 
 // Line-skeleton predictor kept as a law (exception rate as its residual)
 pub mod law;
+mod wire;
 
 #[cfg(test)]
 mod bincode1_fixtures;

@@ -155,7 +155,7 @@ impl TunedCompressor {
         let skeleton_size = payload.skeleton_tokens.len();
 
         // Step 2: Serialize payload with Bincode
-        let serialized = bincode::serialize(&payload)
+        let serialized = crate::wire::encode(&payload)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         crate::bounded_decode::check_unrecorded_payload(serialized.len(), "v2 payload")?;
 
@@ -246,7 +246,7 @@ impl TunedCompressor {
         )?;
 
         // Deserialize with Bincode
-        let payload: ColumnarPayload = bincode::deserialize(&decompressed)
+        let payload: ColumnarPayload = crate::wire::decode(&decompressed)
             .map_err(|e| ALICETextError::DecompressionError(format!("Bincode error: {e}")))?;
 
         // Restore text

@@ -71,6 +71,9 @@ step "ci.yml / clippy: alice-dup-check (no alice-* crate is linked twice in one 
 python3 scripts/alice_dup_check.py --self-test
 python3 scripts/alice_dup_check.py . fuzz
 
+step "ci.yml / clippy: bincode absent from the dependency graph"
+bash scripts/no_bincode_in_graph.sh
+
 step "ci.yml / clippy: each optional feature"
 python3 scripts/feature_check.py --self-test
 python3 scripts/feature_check.py --ci

@@ -508,7 +508,7 @@ impl FormatV3Writer {
 
         // Serialize each column separately
         // 1. Skeleton tokens
-        let skeleton_bytes = bincode::serialize(&payload.skeleton_tokens)
+        let skeleton_bytes = crate::wire::encode(&payload.skeleton_tokens)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::Skeleton,
@@ -517,7 +517,7 @@ impl FormatV3Writer {
         )?;
 
         // 2. Placeholder map
-        let placeholder_bytes = bincode::serialize(&payload.placeholder_map)
+        let placeholder_bytes = crate::wire::encode(&payload.placeholder_map)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::PlaceholderMap,
@@ -526,7 +526,7 @@ impl FormatV3Writer {
         )?;
 
         // 3. Timestamps (delta-encoded)
-        let ts_bytes = bincode::serialize(&payload.timestamps)
+        let ts_bytes = crate::wire::encode(&payload.timestamps)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::Timestamps,
@@ -535,7 +535,7 @@ impl FormatV3Writer {
         )?;
 
         // 4. IPv4
-        let ipv4_bytes = bincode::serialize(&payload.ipv4_addrs)
+        let ipv4_bytes = crate::wire::encode(&payload.ipv4_addrs)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::IPv4,
@@ -544,7 +544,7 @@ impl FormatV3Writer {
         )?;
 
         // 5. IPv6
-        let ipv6_bytes = bincode::serialize(&payload.ipv6_addrs)
+        let ipv6_bytes = crate::wire::encode(&payload.ipv6_addrs)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::IPv6,
@@ -553,7 +553,7 @@ impl FormatV3Writer {
         )?;
 
         // 6. Log levels
-        let log_bytes = bincode::serialize(&payload.log_levels)
+        let log_bytes = crate::wire::encode(&payload.log_levels)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::LogLevels,
@@ -562,7 +562,7 @@ impl FormatV3Writer {
         )?;
 
         // 7. Numbers
-        let num_bytes = bincode::serialize(&payload.numbers)
+        let num_bytes = crate::wire::encode(&payload.numbers)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::Numbers,
@@ -571,12 +571,12 @@ impl FormatV3Writer {
         )?;
 
         // 8. UUIDs
-        let uuid_bytes = bincode::serialize(&payload.uuids)
+        let uuid_bytes = crate::wire::encode(&payload.uuids)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(ColumnType::UUIDs, &uuid_bytes, payload.uuids.len() as u32)?;
 
         // 9. Emails
-        let email_bytes = bincode::serialize(&payload.emails)
+        let email_bytes = crate::wire::encode(&payload.emails)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::Emails,
@@ -585,17 +585,17 @@ impl FormatV3Writer {
         )?;
 
         // 10. URLs
-        let url_bytes = bincode::serialize(&payload.urls)
+        let url_bytes = crate::wire::encode(&payload.urls)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(ColumnType::URLs, &url_bytes, payload.urls.len() as u32)?;
 
         // 11. Paths
-        let path_bytes = bincode::serialize(&payload.paths)
+        let path_bytes = crate::wire::encode(&payload.paths)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(ColumnType::Paths, &path_bytes, payload.paths.len() as u32)?;
 
         // 12. Date days
-        let date_days_bytes = bincode::serialize(&payload.date_days)
+        let date_days_bytes = crate::wire::encode(&payload.date_days)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::DateDays,
@@ -604,7 +604,7 @@ impl FormatV3Writer {
         )?;
 
         // 13. Dates raw
-        let dates_raw_bytes = bincode::serialize(&payload.dates)
+        let dates_raw_bytes = crate::wire::encode(&payload.dates)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::DatesRaw,
@@ -613,7 +613,7 @@ impl FormatV3Writer {
         )?;
 
         // 14. Time ms
-        let time_ms_bytes = bincode::serialize(&payload.time_ms)
+        let time_ms_bytes = crate::wire::encode(&payload.time_ms)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::TimeMs,
@@ -622,7 +622,7 @@ impl FormatV3Writer {
         )?;
 
         // 15. Times raw
-        let times_raw_bytes = bincode::serialize(&payload.times)
+        let times_raw_bytes = crate::wire::encode(&payload.times)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::TimesRaw,
@@ -631,7 +631,7 @@ impl FormatV3Writer {
         )?;
 
         // 16. Hex values
-        let hex_bytes = bincode::serialize(&payload.hex_values)
+        let hex_bytes = crate::wire::encode(&payload.hex_values)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::HexValues,
@@ -640,7 +640,7 @@ impl FormatV3Writer {
         )?;
 
         // 17. Others
-        let others_bytes = bincode::serialize(&payload.others)
+        let others_bytes = crate::wire::encode(&payload.others)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::Others,
@@ -649,7 +649,7 @@ impl FormatV3Writer {
         )?;
 
         // 18. Timestamps raw
-        let ts_raw_bytes = bincode::serialize(&payload.timestamps.raw)
+        let ts_raw_bytes = crate::wire::encode(&payload.timestamps.raw)
             .map_err(|e| ALICETextError::EncodingError(format!("Bincode error: {e}")))?;
         add_column(
             ColumnType::TimestampsRaw,
@@ -763,52 +763,51 @@ impl FormatV3Writer {
                 match col_type {
                     ColumnType::LogLevels => {
                         partial.log_levels =
-                            Some(bincode::deserialize(&decompressed).map_err(|e| {
+                            Some(crate::wire::decode(&decompressed).map_err(|e| {
                                 ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                             })?);
                     }
                     ColumnType::Timestamps => {
                         partial.timestamps =
-                            Some(bincode::deserialize(&decompressed).map_err(|e| {
+                            Some(crate::wire::decode(&decompressed).map_err(|e| {
                                 ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                             })?);
                     }
                     ColumnType::IPv4 => {
                         partial.ipv4_addrs =
-                            Some(bincode::deserialize(&decompressed).map_err(|e| {
+                            Some(crate::wire::decode(&decompressed).map_err(|e| {
                                 ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                             })?);
                     }
                     ColumnType::IPv6 => {
                         partial.ipv6_addrs =
-                            Some(bincode::deserialize(&decompressed).map_err(|e| {
+                            Some(crate::wire::decode(&decompressed).map_err(|e| {
                                 ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                             })?);
                     }
                     ColumnType::Numbers => {
                         partial.numbers =
-                            Some(bincode::deserialize(&decompressed).map_err(|e| {
+                            Some(crate::wire::decode(&decompressed).map_err(|e| {
                                 ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                             })?);
                     }
                     ColumnType::UUIDs => {
-                        partial.uuids = Some(bincode::deserialize(&decompressed).map_err(|e| {
+                        partial.uuids = Some(crate::wire::decode(&decompressed).map_err(|e| {
                             ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                         })?);
                     }
                     ColumnType::Emails => {
-                        partial.emails =
-                            Some(bincode::deserialize(&decompressed).map_err(|e| {
-                                ALICETextError::DecompressionError(format!("Bincode error: {e}"))
-                            })?);
+                        partial.emails = Some(crate::wire::decode(&decompressed).map_err(|e| {
+                            ALICETextError::DecompressionError(format!("Bincode error: {e}"))
+                        })?);
                     }
                     ColumnType::URLs => {
-                        partial.urls = Some(bincode::deserialize(&decompressed).map_err(|e| {
+                        partial.urls = Some(crate::wire::decode(&decompressed).map_err(|e| {
                             ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                         })?);
                     }
                     ColumnType::Paths => {
-                        partial.paths = Some(bincode::deserialize(&decompressed).map_err(|e| {
+                        partial.paths = Some(crate::wire::decode(&decompressed).map_err(|e| {
                             ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                         })?);
                     }
@@ -853,92 +852,92 @@ impl FormatV3Writer {
 
             match entry.col_type {
                 ColumnType::Skeleton => {
-                    skeleton_tokens = bincode::deserialize(&decompressed).map_err(|e| {
+                    skeleton_tokens = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::PlaceholderMap => {
-                    placeholder_map = bincode::deserialize(&decompressed).map_err(|e| {
+                    placeholder_map = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::Timestamps => {
-                    timestamps = bincode::deserialize(&decompressed).map_err(|e| {
+                    timestamps = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::TimestampsRaw => {
-                    timestamps_raw = bincode::deserialize(&decompressed).map_err(|e| {
+                    timestamps_raw = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::IPv4 => {
-                    ipv4_addrs = bincode::deserialize(&decompressed).map_err(|e| {
+                    ipv4_addrs = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::IPv6 => {
-                    ipv6_addrs = bincode::deserialize(&decompressed).map_err(|e| {
+                    ipv6_addrs = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::LogLevels => {
-                    log_levels = bincode::deserialize(&decompressed).map_err(|e| {
+                    log_levels = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::Numbers => {
-                    numbers = bincode::deserialize(&decompressed).map_err(|e| {
+                    numbers = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::UUIDs => {
-                    uuids = bincode::deserialize(&decompressed).map_err(|e| {
+                    uuids = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::Emails => {
-                    emails = bincode::deserialize(&decompressed).map_err(|e| {
+                    emails = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::URLs => {
-                    urls = bincode::deserialize(&decompressed).map_err(|e| {
+                    urls = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::Paths => {
-                    paths = bincode::deserialize(&decompressed).map_err(|e| {
+                    paths = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::DateDays => {
-                    date_days = bincode::deserialize(&decompressed).map_err(|e| {
+                    date_days = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::DatesRaw => {
-                    dates = bincode::deserialize(&decompressed).map_err(|e| {
+                    dates = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::TimeMs => {
-                    time_ms = bincode::deserialize(&decompressed).map_err(|e| {
+                    time_ms = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::TimesRaw => {
-                    times = bincode::deserialize(&decompressed).map_err(|e| {
+                    times = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::HexValues => {
-                    hex_values = bincode::deserialize(&decompressed).map_err(|e| {
+                    hex_values = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
                 ColumnType::Others => {
-                    others = bincode::deserialize(&decompressed).map_err(|e| {
+                    others = crate::wire::decode(&decompressed).map_err(|e| {
                         ALICETextError::DecompressionError(format!("Bincode error: {e}"))
                     })?;
                 }
